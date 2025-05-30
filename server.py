@@ -246,4 +246,5 @@ async def phone_lookup():
 if __name__ == '__main__':
     initialize_users_file()
     initialize_keys_file()
-    app.run(port=3000, debug=True)
+    port = int(os.getenv('PORT', 10000))  # Используем PORT из окружения или 10000 по умолчанию
+    app.run(host='0.0.0.0', port=port, debug=False)  # Привязываем к 0.0.0.0 и отключаем debug
