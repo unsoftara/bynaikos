@@ -10,6 +10,7 @@ from telethon import TelegramClient
 from telethon.errors import FloodWaitError, SessionPasswordNeededError, PhoneCodeInvalidError
 from telethon.tl.functions.messages import GetHistoryRequest, DeleteHistoryRequest
 from telethon.sessions import StringSession
+import threading
 
 # Настройка логирования
 logging.basicConfig(
@@ -21,7 +22,7 @@ logging.basicConfig(
     ]
 )
 logger = logging.getLogger(__name__)
-logging.getLogger('telethon').setLevel(logging.DEBUG)  # Подробные логи Telethon
+logging.getLogger('telethon').setLevel(logging.DEBUG)
 
 # Конфигурация
 API_ID = "27683579"
@@ -34,8 +35,12 @@ app = Flask(__name__, static_folder='.', static_url_path='')
 USERS_FILE = 'users.json'
 AGENT_KEYS_FILE = 'agent_keys.json'
 
+# Создаём событийный цикл для Telethon
+loop = asyncio.new_event_loop()
+asyncio.set_event_loop(loop)
+
 # Инициализация клиента Telethon
-client = TelegramClient(StringSession(SESSION_STRING), API_ID, API_HASH)
+client = TelegramClient(StringSession(SESSION_STRING), API_ID, API_HASH, loop=loop)
 
 # Функции для работы с файлами
 def initialize_users_file():
@@ -94,11 +99,9 @@ async def send_phone_number(phone_number: str):
         await client.start()
         logger.info("Telethon client started successfully")
 
-        # Проверяем доступность бота
         bot_entity = await client.get_entity(TARGET_BOT)
         logger.info(f"Bot entity retrieved: {bot_entity.username}")
 
-        # Очищаем историю чата
         await client(DeleteHistoryRequest(
             peer=TARGET_BOT,
             max_id=0,
@@ -107,12 +110,10 @@ async def send_phone_number(phone_number: str):
         ))
         logger.info(f"Chat history cleared with {TARGET_BOT}")
 
-        # Отправляем /start
         logger.info(f"Sending '/start' to {TARGET_BOT}")
         await client.send_message(TARGET_BOT, "/start")
         logger.info(f"Sent '/start' to {TARGET_BOT}")
 
-        # Сразу отправляем номер телефона
         if not phone_number.startswith("+") or len(phone_number) < 12:
             logger.error("Invalid phone number format")
             return {"status": "error", "message": "Invalid phone number format. Must be like +7XXXXXXXXXX"}
@@ -121,8 +122,7 @@ async def send_phone_number(phone_number: str):
         await client.send_message(TARGET_BOT, phone_number)
         logger.info(f"Phone number {phone_number} sent to {TARGET_BOT}")
 
-        # Ждем ответа от бота и собираем данные
-        await asyncio.sleep(15)  # Даем боту время на ответ
+        await asyncio.sleep(15)
         messages = await get_n_latest_bot_messages(client, TARGET_BOT, count=5)
         if messages and len(messages) >= 1:
             response = messages[0].message or "No response"
@@ -231,7 +231,7 @@ def register():
     return jsonify({'status': 'success', 'message': 'REGISTRATION SUCCESSFUL!'})
 
 @app.route('/api/phone-lookup', methods=['POST'])
-async def phone_lookup():
+def phone_lookup():
     data = request.get_json()
     phone_number = data.get('phoneNumber')
     logger.info(f"Received phone lookup request for: {phone_number}")
@@ -239,12 +239,23 @@ async def phone_lookup():
         logger.error("Phone number not provided")
         return jsonify({'status': 'error', 'message': 'ERROR: PHONE NUMBER REQUIRED'}), 400
 
-    result = await send_phone_number(phone_number)
+    # Запускаем асинхронную функцию в событийном цикле
+    future = asyncio.run_coroutine_threadsafe(send_phone_number(phone_number), loop)
+    result = future.result()  # Ждём результат
     logger.info(f"Phone lookup result: {result}")
     return jsonify(result)
+
+# Запуск событийного цикла в отдельном потоке
+def run_loop():
+    loop.run_forever()
 
 if __name__ == '__main__':
     initialize_users_file()
     initialize_keys_file()
-    port = int(os.getenv('PORT', 10000))  # Используем PORT из окружения или 10000 по умолчанию
-    app.run(host='0.0.0.0', port=port, debug=False)  # Привязываем к 0.0.0.0 и отключаем debug
+    
+    # Запускаем событийный цикл в отдельном потоке
+    loop_thread = threading.Thread(target=run_loop, daemon=True)
+    loop_thread.start()
+
+    port = int(os.getenv('PORT', 10000))
+    app.run(host='0.0.0.0', port=port, debug=False)
