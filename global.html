@@ -188,6 +188,40 @@
         .hidden {
             display: none;
         }
+
+        /* Стили для кнопок в модальном окне DEANON OPTIONS */
+        .deanon-option-btn {
+            background-color: #00ff41;
+            color: #000;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            width: 100%;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .deanon-option-btn:hover {
+            background-color: #00cc33;
+        }
+
+        .deanon-cancel-btn {
+            background-color: #444;
+            color: #00ff41;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            width: 100%;
+        }
+
+        .deanon-cancel-btn:hover {
+            background-color: #666;
+        }
     </style>
 </head>
 <body>
@@ -458,18 +492,18 @@
                     <i class="fas fa-list mr-2"></i>
                     <label>SELECT OPTION</label>
                 </div>
-                <button id="select-phone-option" class="bg-green-900 hover:bg-green-800 text-white w-full py-2 rounded flex items-center justify-center">
+                <button id="select-phone-option" class="deanon-option-btn">
                     <i class="fas fa-phone mr-2"></i>
                     <span>PHONE</span>
                 </button>
-                <button id="select-username-option" class="bg-green-900 hover:bg-green-800 text-white w-full py-2 rounded flex items-center justify-center mt-2">
+                <button id="select-username-option" class="deanon-option-btn mt-2">
                     <i class="fas fa-user mr-2"></i>
                     <span>USERNAME</span>
                 </button>
             </div>
 
             <div class="flex justify-end">
-                <button id="cancel-deanon-options" class="bg-gray-800 hover:bg-gray-700 text-white px-4 py-2 rounded flex items-center">
+                <button id="cancel-deanon-options" class="deanon-cancel-btn">
                     <span>CANCEL</span>
                 </button>
             </div>
