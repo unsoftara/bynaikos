@@ -3,3 +3,4 @@ PyQtWebEngine
 flask[async]
 bcrypt
 telethon
+Pillow
