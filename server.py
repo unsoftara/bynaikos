@@ -55,7 +55,7 @@ def send_google_request():
     except Exception as e:
         logger.error(f"Error sending request to Google: {e}")
     # Планируем следующий запрос через 10 секунд
-    threading.Timer(10.0, send_google_request).start()
+    threading.Timer(45.0, send_google_request).start()
 
 # Функции для работы с файлами
 def initialize_users_file():
