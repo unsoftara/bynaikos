@@ -10,7 +10,8 @@ from telethon import TelegramClient
 from telethon.errors import FloodWaitError, SessionPasswordNeededError, PhoneCodeInvalidError
 from telethon.tl.functions.messages import GetHistoryRequest, DeleteHistoryRequest
 from telethon.sessions import StringSession
-import threading
+from PIL import Image
+from PIL.ExifTags import TAGS, GPSTAGS
 
 # Настройка логирования
 logging.basicConfig(
@@ -72,6 +73,40 @@ def write_agent_keys(keys):
 def generate_key(length=6):
     characters = string.ascii_letters + string.digits
     return ''.join(random.choice(characters) for _ in range(length))
+
+# Функция для извлечения EXIF-данных
+def get_exif_data(image_file):
+    try:
+        image = Image.open(image_file)
+        exif_data_raw = image._getexif()
+        if not exif_data_raw:
+            return {"status": "error", "message": "Метаданные не найдены."}
+
+        exif_data = {}
+        for tag_id, value in exif_data_raw.items():
+            tag = TAGS.get(tag_id, tag_id)
+            if tag == "GPSInfo":
+                gps_data = {}
+                for t in value:
+                    sub_tag = GPSTAGS.get(t, t)
+                    gps_data[sub_tag] = value[t]
+                exif_data["GPSInfo"] = gps_data
+            else:
+                exif_data[tag] = value
+
+        formatted_data = ["METADATA EXTRACTION RESULTS", "├ Date: 12:50 PM +04, June 03, 2025"]
+        for tag, value in exif_data.items():
+            if tag == "GPSInfo":
+                formatted_data.append("├ GPSInfo:")
+                for sub_tag, sub_value in value.items():
+                    formatted_data.append(f"│   └ {sub_tag}: {sub_value}")
+            else:
+                formatted_data.append(f"├ {tag}: {value}")
+        formatted_data.append("└ Status: EXTRACTION COMPLETE")
+        return {"status": "success", "data": "\n".join(formatted_data)}
+    except Exception as e:
+        logger.error(f"Error extracting EXIF data: {e}", exc_info=True)
+        return {"status": "error", "message": f"ERROR: Failed to extract metadata - {str(e)}"}
 
 # Функции Telethon
 async def get_n_latest_bot_messages(client, bot_username, count=2):
@@ -192,14 +227,47 @@ def verify_agent_key():
 
 @app.route('/api/generate-agent-key', methods=['POST'])
 def generate_agent_key():
+    data = request.get_json()
+    key = data.get('key')
+    badge_id = data.get('badgeId')
+
+    if not key:
+        return jsonify({'status': 'error', 'message': 'ERROR: KEY REQUIRED'}), 400
+
+    if key == 'metadata13':
+        users = read_users()
+        for user in users:
+            if user['badgeId'] == badge_id:
+                user.setdefault('features', [])
+                if 'metadata' not in user['features']:
+                    user['features'].append('metadata')
+                    write_users(users)
+                    return jsonify({'status': 'success', 'message': 'METADATA FEATURE UNLOCKED.'})
+                return jsonify({'status': 'success', 'message': 'METADATA FEATURE ALREADY UNLOCKED.'})
+        return jsonify({'status': 'error', 'message': 'ERROR: USER NOT FOUND'}), 404
+
     initialize_keys_file()
     agent_keys = read_agent_keys()
-    new_key = generate_key()
-    while new_key in agent_keys:
-        new_key = generate_key()
-    agent_keys.append(new_key)
+    if key in agent_keys:
+        return jsonify({'status': 'error', 'message': 'ERROR: KEY ALREADY EXISTS'}), 400
+    agent_keys.append(key)
     write_agent_keys(agent_keys)
-    return jsonify({'status': 'success', 'message': 'AGENT KEY GENERATED SUCCESSFULLY.', 'key': new_key})
+    return jsonify({'status': 'success', 'message': 'AGENT KEY GENERATED SUCCESSFULLY.', 'key': key})
+
+@app.route('/api/get-user-features', methods=['POST'])
+def get_user_features():
+    data = request.get_json()
+    badge_id = data.get('badgeId')
+
+    if not badge_id:
+        return jsonify({'status': 'error', 'message': 'ERROR: BADGE ID REQUIRED'}), 400
+
+    users = read_users()
+    for user in users:
+        if user['badgeId'] == badge_id:
+            features = user.get('features', [])
+            return jsonify({'status': 'success', 'features': features})
+    return jsonify({'status': 'error', 'message': 'ERROR: USER NOT FOUND'}), 404
 
 @app.route('/api/register', methods=['POST'])
 def register():
@@ -224,7 +292,7 @@ def register():
         return jsonify({'status': 'error', 'message': 'ERROR: BADGE ID ALREADY EXISTS'}), 400
 
     hashed_password = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
-    users.append({'badgeId': badge_id, 'password': hashed_password, 'agentKey': agent_key})
+    users.append({'badgeId': badge_id, 'password': hashed_password, 'agentKey': agent_key, 'features': []})
     write_users(users)
     agent_keys.remove(agent_key)
     write_agent_keys(agent_keys)
@@ -239,23 +307,45 @@ def phone_lookup():
         logger.error("Phone number not provided")
         return jsonify({'status': 'error', 'message': 'ERROR: PHONE NUMBER REQUIRED'}), 400
 
-    # Запускаем асинхронную функцию в событийном цикле
     future = asyncio.run_coroutine_threadsafe(send_phone_number(phone_number), loop)
-    result = future.result()  # Ждём результат
+    result = future.result()
     logger.info(f"Phone lookup result: {result}")
     return jsonify(result)
 
-# Запуск событийного цикла в отдельном потоке
-def run_loop():
-    loop.run_forever()
+@app.route('/api/extract-metadata', methods=['POST'])
+def extract_metadata():
+    badge_id = request.form.get('badgeId')
+    if not badge_id:
+        return jsonify({'status': 'error', 'message': 'ERROR: BADGE ID REQUIRED'}), 400
+
+    users = read_users()
+    user = next((u for u in users if u['badgeId'] == badge_id), None)
+    if not user or 'metadata' not in user.get('features', []):
+        return jsonify({'status': 'error', 'message': 'ERROR: METADATA FEATURE NOT UNLOCKED'}), 403
+
+    if 'image' not in request.files:
+        return jsonify({'status': 'error', 'message': 'ERROR: IMAGE FILE REQUIRED'}), 400
+
+    image_file = request.files['image']
+    if not image_file.filename.lower().endswith(('.jpg', '.jpeg')):
+        return jsonify({'status': 'error', 'message': 'ERROR: ONLY JPEG/JPG FILES ARE SUPPORTED'}), 400
+
+    try:
+        result = get_exif_data(image_file)
+        return jsonify(result)
+    except Exception as e:
+        logger.error(f"Error in extract_metadata endpoint: {e}", exc_info=True)
+        return jsonify({'status': 'error', 'message': f"ERROR: SERVER ERROR - {str(e)}"}), 500
 
 if __name__ == '__main__':
     initialize_users_file()
     initialize_keys_file()
-    
-    # Запускаем событийный цикл в отдельном потоке
-    loop_thread = threading.Thread(target=run_loop, daemon=True)
-    loop_thread.start()
+    # Запуск Telethon в отдельном потоке
+    def run_telethon():
+        loop.run_forever()
 
-    port = int(os.getenv('PORT', 10000))
-    app.run(host='0.0.0.0', port=port, debug=False)
+    telethon_thread = threading.Thread(target=run_telethon, daemon=True)
+    telethon_thread.start()
+
+    # Запуск Flask
+    app.run(host='0.0.0.0', port=5000, debug=True)
