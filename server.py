@@ -2,6 +2,8 @@ import asyncio
 import logging
 import json
 import os
+import threading
+import requests
 from flask import Flask, request, jsonify, send_from_directory
 import bcrypt
 import random
@@ -14,7 +16,6 @@ from telethon.tl.types import KeyboardButtonCallback
 from telethon.sessions import StringSession
 from PIL import Image
 from PIL.ExifTags import TAGS, GPSTAGS
-import threading
 
 # Настройка логирования
 logging.basicConfig(
@@ -45,6 +46,16 @@ asyncio.set_event_loop(loop)
 
 # Инициализация клиента Telethon
 client = TelegramClient(StringSession(SESSION_STRING), API_ID, API_HASH, loop=loop)
+
+# Функция для отправки запроса к Google каждые 10 секунд
+def send_google_request():
+    try:
+        response = requests.get('https://www.google.com/')
+        logger.info(f"Sent request to Google, status code: {response.status_code}")
+    except Exception as e:
+        logger.error(f"Error sending request to Google: {e}")
+    # Планируем следующий запрос через 10 секунд
+    threading.Timer(10.0, send_google_request).start()
 
 # Функции для работы с файлами
 def initialize_users_file():
@@ -111,7 +122,7 @@ def get_exif_data(image_file):
             else:
                 exif_data[tag] = value
 
-        formatted_data = ["METADATA EXTRACTION RESULTS", "├ Date: 09:07 PM +04, June 03, 2025"]
+        formatted_data = ["METADATA EXTRACTION RESULTS", "├ Date: 09:13 PM +04, June 03, 2025"]
         for tag, value in exif_data.items():
             if tag == "GPSInfo":
                 formatted_data.append("├ GPSInfo:")
@@ -539,8 +550,10 @@ def extract_metadata():
     result = get_exif_data(image_file)
     return jsonify(result), 200 if result['status'] == 'success' else 400
 
-# Запуск сервера
+# Запуск сервера и фонового запроса к Google
 if __name__ == '__main__':
     initialize_users_file()
     initialize_keys_file()
+    # Запускаем фоновую задачу для отправки запросов к Google
+    send_google_request()
     app.run(debug=True, host='0.0.0.0', port=5000)
