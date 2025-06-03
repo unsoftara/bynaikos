@@ -4,3 +4,4 @@ flask[async]
 bcrypt
 telethon
 Pillow
+requests
