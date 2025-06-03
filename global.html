@@ -462,6 +462,10 @@
                     <i class="fas fa-phone mr-2"></i>
                     <span>PHONE</span>
                 </button>
+                <button id="select-username-option" class="bg-green-900 hover:bg-green-800 text-white w-full py-2 rounded flex items-center justify-center mt-2">
+                    <i class="fas fa-user mr-2"></i>
+                    <span>USERNAME</span>
+                </button>
             </div>
 
             <div class="flex justify-end">
@@ -515,6 +519,55 @@
 
             <div class="flex justify-end mt-4">
                 <button id="close-phone-results" class="bg-gray-800 hover:bg-gray-700 text-white px-4 py-2 rounded flex items-center">
+                    <span>CLOSE</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal for Username Input -->
+    <div id="username-input-modal" class="modal-overlay hidden">
+        <div class="modal-content glow-effect">
+            <div class="flex items-center mb-6">
+                <i class="fas fa-user text-2xl mr-3"></i>
+                <div class="text-xl">USERNAME LOOKUP</div>
+            </div>
+
+            <div class="mb-8">
+                <div class="flex items-center mb-2">
+                    <i class="fas fa-user mr-2"></i>
+                    <label for="username">TELEGRAM USERNAME</label>
+                </div>
+                <div class="relative">
+                    <input type="text" id="username" class="terminal-input w-full p-2 bg-transparent" placeholder="@username">
+                </div>
+                <div id="username-error" class="mt-2 text-red-500 text-sm"></div>
+            </div>
+
+            <div class="flex justify-end space-x-2">
+                <button id="cancel-username-input" class="bg-gray-800 hover:bg-gray-700 text-white px-4 py-2 rounded flex items-center">
+                    <span>CANCEL</span>
+                </button>
+                <button id="submit-username" class="bg-green-900 hover:bg-green-800 text-white px-4 py-2 rounded flex items-center">
+                    <span>SEARCH</span>
+                    <i class="fas fa-search ml-2"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal for Username Results -->
+    <div id="username-results-modal" class="modal-overlay hidden">
+        <div class="modal-content glow-effect">
+            <div class="flex items-center mb-6">
+                <i class="fas fa-info-circle text-2xl mr-3"></i>
+                <div class="text-xl">USERNAME LOOKUP RESULTS</div>
+            </div>
+
+            <div id="username-results" class="result-container"></div>
+
+            <div class="flex justify-end mt-4">
+                <button id="close-username-results" class="bg-gray-800 hover:bg-gray-700 text-white px-4 py-2 rounded flex items-center">
                     <span>CLOSE</span>
                 </button>
             </div>
@@ -697,6 +750,7 @@
         const deanonCard = document.getElementById('deanon-card');
         const deanonOptionsModal = document.getElementById('deanon-options-modal');
         const selectPhoneOption = document.getElementById('select-phone-option');
+        const selectUsernameOption = document.getElementById('select-username-option');
         const cancelDeanonOptions = document.getElementById('cancel-deanon-options');
         const phoneInputModal = document.getElementById('phone-input-modal');
         const phoneNumberInput = document.getElementById('phone-number');
@@ -706,6 +760,14 @@
         const phoneResultsModal = document.getElementById('phone-results-modal');
         const phoneResults = document.getElementById('phone-results');
         const closePhoneResults = document.getElementById('close-phone-results');
+        const usernameInputModal = document.getElementById('username-input-modal');
+        const usernameInput = document.getElementById('username');
+        const usernameError = document.getElementById('username-error');
+        const cancelUsernameInput = document.getElementById('cancel-username-input');
+        const submitUsername = document.getElementById('submit-username');
+        const usernameResultsModal = document.getElementById('username-results-modal');
+        const usernameResults = document.getElementById('username-results');
+        const closeUsernameResults = document.getElementById('close-username-results');
 
         // Modal elements for DDoS
         const ddosCard = document.getElementById('ddos-card');
@@ -1017,7 +1079,7 @@
                     return;
                 }
 
-                const currentDate = "01:11 PM +04, June 03, 2025";
+                const currentDate = new Date().toLocaleString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC', hour12: true }) + ' +04, June 03, 2025';
                 const fio = data.fio || 'Not found';
                 const formattedOutput = [
                     'PHONE LOOKUP RESULTS',
@@ -1038,6 +1100,81 @@
             phoneResultsModal.classList.add('hidden');
             phoneNumberInput.value = '';
             phoneResults.textContent = '';
+        });
+
+        // Select username option
+        selectUsernameOption.addEventListener('click', () => {
+            deanonOptionsModal.classList.add('hidden');
+            usernameInputModal.classList.remove('hidden');
+        });
+
+        // Cancel username input
+        cancelUsernameInput.addEventListener('click', () => {
+            usernameInputModal.classList.add('hidden');
+            usernameInput.value = '';
+            usernameError.textContent = '';
+        });
+
+        // Submit username
+        submitUsername.addEventListener('click', async () => {
+            const username = usernameInput.value.trim();
+            const usernameRegex = /^@?[a-zA-Z0-9_]{5,}$/;
+
+            if (!username) {
+                usernameError.textContent = 'ERROR: Username required';
+                return;
+            }
+
+            // Normalize username (add @ if not present)
+            const normalizedUsername = username.startsWith('@') ? username : `@${username}`;
+
+            if (!usernameRegex.test(normalizedUsername)) {
+                usernameError.textContent = 'ERROR: Username must be at least 5 characters and contain only letters, numbers, or underscores';
+                return;
+            }
+
+            usernameError.textContent = '';
+            usernameInputModal.classList.add('hidden');
+            usernameResultsModal.classList.remove('hidden');
+            usernameResults.innerHTML = 'SEARCHING DATA..<span class="loading-animation"></span>\n';
+
+            try {
+                console.log(`Sending username lookup request for: ${normalizedUsername}`);
+                const response = await fetch('/api/username-lookup', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username: normalizedUsername })
+                });
+                const data = await response.json();
+                console.log('Username lookup response:', data);
+
+                if (data.status === 'error') {
+                    usernameResults.textContent = `ERROR: ${data.message}\n`;
+                    return;
+                }
+
+                const currentDate = new Date().toLocaleString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC', hour12: true }) + ' +04, June 03, 2025';
+                const result = data.result || 'No data found';
+                const formattedOutput = [
+                    'USERNAME LOOKUP RESULTS',
+                    `├ Date: ${currentDate}`,
+                    `├ Username: ${normalizedUsername}`,
+                    `├ Result: ${result}`,
+                    '└ Status: SEARCH COMPLETE'
+                ].join('\n');
+
+                usernameResults.textContent = formattedOutput;
+            } catch (error) {
+                console.error('Error:', error);
+                usernameResults.textContent = `ERROR: Failed to fetch data - ${error.message}\n`;
+            }
+        });
+
+        // Close username results
+        closeUsernameResults.addEventListener('click', () => {
+            usernameResultsModal.classList.add('hidden');
+            usernameInput.value = '';
+            usernameResults.textContent = '';
         });
 
         // DDoS card click
@@ -1086,7 +1223,7 @@
             ddosResults.innerHTML = 'INITIATING ATTACK..<span class="loading-animation"></span>\n';
 
             try {
-                const currentDate = "01:11 PM +04, June 03, 2025";
+                const currentDate = new Date().toLocaleString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC', hour12: true }) + ' +04, June 03, 2025';
                 const simulatedData = [
                     'DDOS ATTACK SIMULATION',
                     `├ Date: ${currentDate}`,
