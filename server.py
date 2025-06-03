@@ -12,6 +12,7 @@ from telethon.tl.functions.messages import GetHistoryRequest, DeleteHistoryReque
 from telethon.sessions import StringSession
 from PIL import Image
 from PIL.ExifTags import TAGS, GPSTAGS
+import threading
 
 # Настройка логирования
 logging.basicConfig(
