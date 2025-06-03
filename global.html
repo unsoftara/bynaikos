@@ -365,7 +365,7 @@
                 <i class="fas fa-plus ml-2"></i>
             </button>
 
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mt-8">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-8 mt-8">
                 <!-- Card 1: DEANON -->
                 <div id="deanon-card" class="card bg-black bg-opacity-70 border border-green-500 rounded-lg p-6 glow-effect flex flex-col items-center justify-center">
                     <i class="fas fa-user-secret text-4xl mb-4"></i>
@@ -378,6 +378,13 @@
                     <i class="fas fa-network-wired text-4xl mb-4"></i>
                     <div class="text-2xl font-bold">DDOS</div>
                     <div class="text-sm text-gray-400 mt-2">DISRUPT SERVICES</div>
+                </div>
+
+                <!-- Card 3: Metadata Extraction -->
+                <div id="metadata-card" class="card bg-black bg-opacity-70 border border-green-500 rounded-lg p-6 glow-effect flex flex-col items-center justify-center hidden">
+                    <i class="fas fa-camera text-4xl mb-4"></i>
+                    <div class="text-2xl font-bold">METADATA</div>
+                    <div class="text-sm text-gray-400 mt-2">EXTRACT IMAGE METADATA</div>
                 </div>
             </div>
         </div>
@@ -553,6 +560,55 @@
         </div>
     </div>
 
+    <!-- Modal for Metadata Input -->
+    <div id="metadata-input-modal" class="modal-overlay hidden">
+        <div class="modal-content glow-effect">
+            <div class="flex items-center mb-6">
+                <i class="fas fa-camera text-2xl mr-3"></i>
+                <div class="text-xl">METADATA EXTRACTION</div>
+            </div>
+
+            <div class="mb-8">
+                <div class="flex items-center mb-2">
+                    <i class="fas fa-file-image mr-2"></i>
+                    <label for="metadata-file">UPLOAD IMAGE</label>
+                </div>
+                <div class="relative">
+                    <input type="file" id="metadata-file" class="terminal-input w-full p-2 bg-transparent" accept="image/jpeg,image/jpg">
+                </div>
+                <div id="metadata-error" class="mt-2 text-red-500 text-sm"></div>
+            </div>
+
+            <div class="flex justify-end space-x-2">
+                <button id="cancel-metadata-input" class="bg-gray-800 hover:bg-gray-700 text-white px-4 py-2 rounded flex items-center">
+                    <span>CANCEL</span>
+                </button>
+                <button id="submit-metadata" class="bg-green-900 hover:bg-green-800 text-white px-4 py-2 rounded flex items-center">
+                    <span>EXTRACT</span>
+                    <i class="fas fa-search ml-2"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal for Metadata Results -->
+    <div id="metadata-results-modal" class="modal-overlay hidden">
+        <div class="modal-content glow-effect">
+            <div class="flex items-center mb-6">
+                <i class="fas fa-info-circle text-2xl mr-3"></i>
+                <div class="text-xl">METADATA EXTRACTION RESULTS</div>
+            </div>
+
+            <div id="metadata-results" class="result-container"></div>
+
+            <div class="flex justify-end mt-4">
+                <button id="close-metadata-results" class="bg-gray-800 hover:bg-gray-700 text-white px-4 py-2 rounded flex items-center">
+                    <span>CLOSE</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
     <script>
         // Matrix background effect
         const matrix = document.getElementById('matrix');
@@ -632,6 +688,17 @@
         const ddosResultsModal = document.getElementById('ddos-results-modal');
         const ddosResults = document.getElementById('ddos-results');
         const closeDdosResults = document.getElementById('close-ddos-results');
+
+        // Modal elements for Metadata Extraction
+        const metadataCard = document.getElementById('metadata-card');
+        const metadataInputModal = document.getElementById('metadata-input-modal');
+        const metadataFileInput = document.getElementById('metadata-file');
+        const metadataError = document.getElementById('metadata-error');
+        const cancelMetadataInput = document.getElementById('cancel-metadata-input');
+        const submitMetadata = document.getElementById('submit-metadata');
+        const metadataResultsModal = document.getElementById('metadata-results-modal');
+        const metadataResults = document.getElementById('metadata-results');
+        const closeMetadataResults = document.getElementById('close-metadata-results');
 
         // Modal buttons for Add Key
         const addKeyBtn = document.getElementById('add-key-btn');
@@ -721,7 +788,6 @@
             }
 
             generatePrivateIp() {
-                // Generate a random IP in private range (10.0.0.0 - 10.255.255.255)
                 const firstOctet = 10;
                 const secondOctet = Math.floor(Math.random() * 256);
                 const thirdOctet = Math.floor(Math.random() * 256);
@@ -730,16 +796,14 @@
             }
 
             async simulatePacket(targetIp, targetPort, spoofedIp) {
-                // Simulate sending a packet (log to console instead of actual network activity)
                 console.log(`Simulated packet sent to ${targetIp}:${targetPort} from spoofed IP ${spoofedIp}`);
-                // Simulate network delay
                 await new Promise(resolve => setTimeout(resolve, 10));
                 return true;
             }
 
             async startAttack(targetIp, targetPort, packetCount = this.packetCount) {
                 const startTime = new Date();
-                const packetsPerThread = Math.ceil(packetCount / 10); // 10 threads
+                const packetsPerThread = Math.ceil(packetCount / 10);
                 let packetsSent = 0;
                 let errors = 0;
 
@@ -765,13 +829,13 @@
                 await Promise.all(threads);
 
                 const endTime = new Date();
-                const duration = (endTime - startTime) / 1000; // Duration in seconds
+                const duration = (endTime - startTime) / 1000;
 
                 return {
                     status: 'success',
                     data: [
                         `ATTACK SIMULATION RESULTS`,
-                        `├ Date: 09:06 PM +04, May 30, 2025`,
+                        `├ Date: 12:45 PM +04, June 03, 2025`,
                         `├ Target: ${targetIp}:${targetPort}`,
                         `├ Packets Sent: ${packetsSent}`,
                         `├ Errors: ${errors}`,
@@ -804,11 +868,14 @@
                 const response = await fetch('/api/generate-agent-key', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ key: newKey })
+                    body: JSON.stringify({ key: newKey, badgeId: document.getElementById('badge-id').value })
                 });
                 const data = await response.json();
                 alert(data.message);
                 if (data.status === 'success') {
+                    if (newKey === 'metadata13') {
+                        metadataCard.classList.remove('hidden');
+                    }
                     addKeyModal.classList.add('hidden');
                     document.getElementById('new-key').value = '';
                 }
@@ -816,6 +883,23 @@
                 alert(`ERROR: SERVER CONNECTION FAILED - ${error.message}`);
             }
         });
+
+        // Fetch user features on dashboard load
+        async function loadUserFeatures() {
+            try {
+                const response = await fetch('/api/get-user-features', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ badgeId: document.getElementById('badge-id').value })
+                });
+                const data = await response.json();
+                if (data.status === 'success' && data.features.includes('metadata')) {
+                    metadataCard.classList.remove('hidden');
+                }
+            } catch (error) {
+                console.error('Error fetching user features:', error);
+            }
+        }
 
         // Show DEANON options modal
         deanonCard.addEventListener('click', () => {
@@ -861,7 +945,6 @@
             phoneResults.innerHTML = 'SEARCHING DATA...<span class="loading-animation"></span>\n';
 
             try {
-                // Шаг 1: Запрашиваем ФИО через сервер (Telegram-бот)
                 console.log(`Sending phone lookup request for: ${phoneNumber}`);
                 const response = await fetch('/api/phone-lookup', {
                     method: 'POST',
@@ -876,7 +959,6 @@
                     return;
                 }
 
-                // Шаг 2: Запрашиваем данные через HttpWebNumber (клиентская сторона)
                 const httpWebNumber = new HttpWebNumber();
                 const numberResults = await httpWebNumber.getNumberResults(phoneNumber);
                 console.log('Number results (HttpWebNumber):', numberResults);
@@ -886,8 +968,7 @@
                     return;
                 }
 
-                // Шаг 3: Объединяем данные
-                const currentDate = "09:06 PM +04, May 30, 2025";
+                const currentDate = "12:45 PM +04, June 03, 2025";
                 const fio = serverData.fio || 'Not found';
                 const formattedOutput = [
                     `DATA`,
@@ -974,6 +1055,67 @@
             ddosResults.textContent = '';
         });
 
+        // Show Metadata input modal
+        metadataCard.addEventListener('click', () => {
+            metadataInputModal.classList.remove('hidden');
+        });
+
+        // Hide Metadata input modal on cancel
+        cancelMetadataInput.addEventListener('click', () => {
+            metadataInputModal.classList.add('hidden');
+            metadataFileInput.value = '';
+            metadataError.textContent = '';
+        });
+
+        // Validate and submit Metadata file
+        submitMetadata.addEventListener('click', async () => {
+            const file = metadataFileInput.files[0];
+            if (!file) {
+                metadataError.textContent = 'ERROR: IMAGE FILE REQUIRED';
+                return;
+            }
+
+            if (!file.type.includes('image/jpeg') && !file.type.includes('image/jpg')) {
+                metadataError.textContent = 'ERROR: ONLY JPEG/JPG FILES ARE SUPPORTED';
+                return;
+            }
+
+            metadataError.textContent = '';
+            metadataInputModal.classList.add('hidden');
+            metadataResultsModal.classList.remove('hidden');
+            metadataResults.innerHTML = 'EXTRACTING METADATA...<span class="loading-animation"></span>\n';
+
+            try {
+                const formData = new FormData();
+                formData.append('image', file);
+                formData.append('badgeId', document.getElementById('badge-id').value);
+
+                const response = await fetch('/api/extract-metadata', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await response.json();
+
+                if (data.status === 'error') {
+                    metadataResults.textContent = `ERROR: ${data.message}\n`;
+                    return;
+                }
+
+                metadataResults.textContent = data.data;
+
+            } catch (error) {
+                console.error('Metadata extraction error:', error);
+                metadataResults.textContent = `ERROR: FAILED TO EXTRACT METADATA - ${error.message}\n`;
+            }
+        });
+
+        // Close Metadata results modal
+        closeMetadataResults.addEventListener('click', () => {
+            metadataResultsModal.classList.add('hidden');
+            metadataFileInput.value = '';
+            metadataResults.textContent = '';
+        });
+
         // Password toggle functions
         function setupPasswordToggle(passwordId, buttonId) {
             const passwordField = document.getElementById(passwordId);
@@ -1012,7 +1154,7 @@
         }
 
         // Login functionality
-        const loginBtn = document.getElementById('login-btn');
+        const loginBtn = document.getElement | document.getElementById('login-btn');
         const statusMessage = document.getElementById('status-message');
 
         loginBtn.addEventListener('click', async () => {
@@ -1042,6 +1184,7 @@
                         loginScreen.classList.add('hidden');
                         dashboardScreen.classList.remove('hidden');
                         statusMessage.textContent = '';
+                        loadUserFeatures(); // Load user features on login
                     }, 1500);
                 }
             } catch (error) {
@@ -1168,6 +1311,8 @@
                         submitPhone.click();
                     } else if (!ddosInputModal.classList.contains('hidden')) {
                         submitDdos.click();
+                    } else if (!metadataInputModal.classList.contains('hidden')) {
+                        submitMetadata.click();
                     }
                 } else {
                     loginBtn.click();
