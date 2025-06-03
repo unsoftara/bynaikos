@@ -56,8 +56,8 @@
         }
 
         .matrix-bg canvas {
-            width: 100% !important;
-            height: 100% !important;
+            width: 100%;
+            height: 100%;
         }
 
         .access-denied {
@@ -81,15 +81,6 @@
 
         .password-field {
             letter-spacing: 3px;
-        }
-
-        @keyframes flash {
-            0%, 100% { background-color: inherit; }
-            50% { background-color: rgba(255, 0, 0, 0.3); }
-        }
-
-        .hidden {
-            display: none;
         }
 
         .card {
@@ -126,14 +117,6 @@
             overflow-x: auto;
         }
 
-        .dashboard-header {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            width: 100%;
-            margin-bottom: 2rem;
-        }
-
         .add-key-button {
             position: fixed;
             top: 1rem;
@@ -146,7 +129,6 @@
             border: 2px solid #00ff41;
             border-radius: 8px;
             padding: 1rem;
-            width: 100%;
             white-space: pre;
             overflow-x: auto;
         }
@@ -171,10 +153,48 @@
             animation: loading 1s infinite;
             display: inline-block;
         }
+
+        .toast {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            background: rgba(0, 0, 0, 0.8);
+            border: 2px solid #00ff41;
+            color: #00ff41;
+            padding: 1rem 2rem;
+            border-radius: 8px;
+            z-index: 2000;
+            opacity: 0;
+            transform: translateY(20px);
+            transition: opacity 0.3s, transform 0.3s;
+            box-shadow: 0 0 15px rgba(0, 255, 65, 0.5);
+        }
+
+        .toast.show {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .toast.success {
+            border-color: #00ff41;
+            color: #00ff41;
+        }
+
+        .toast.error {
+            border-color: #ff0000;
+            color: #ff0000;
+        }
+
+        .hidden {
+            display: none;
+        }
     </style>
 </head>
 <body>
     <div class="matrix-bg" id="matrix"></div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="toast hidden"></div>
 
     <!-- Login Screen -->
     <div id="login-screen" class="container mx-auto px-4 flex flex-col items-center justify-center h-screen">
@@ -586,7 +606,7 @@
                 <button id="submit-metadata" class="bg-green-900 hover:bg-green-800 text-white px-4 py-2 rounded flex items-center">
                     <span>EXTRACT</span>
                     <i class="fas fa-search ml-2"></i>
-                </div>
+                </button>
             </div>
         </div>
     </div>
@@ -610,6 +630,21 @@
     </div>
 
     <script>
+        // Store current badge ID globally
+        let currentBadgeId = '';
+
+        // Toast notification function
+        function showToast(message, type = 'success') {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.classList.remove('hidden', 'success', 'error');
+            toast.classList.add('show', type);
+            setTimeout(() => {
+                toast.classList.remove('show');
+                setTimeout(() => toast.classList.add('hidden'), 300);
+            }, 3000);
+        }
+
         // Matrix background effect
         const matrix = document.getElementById('matrix');
         const canvas = document.createElement('canvas');
@@ -622,6 +657,7 @@
         }
 
         resizeCanvas();
+        window.addEventListener('resize', resizeCanvas);
 
         const katakana = 'アァカサタナハマヤャラワガザダバパイィキシチニヒミリヰギジヂビピウゥクスツヌフムユュルグズブヅプエェケセテネヘメレヱゲゼデベペオォコソトノホモヨョロヲゴゾドボポヴッン';
         const latin = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
@@ -630,23 +666,17 @@
 
         const fontSize = 16;
         let columns = Math.floor(canvas.width / fontSize);
-
-        const rainDrops = [];
-        for (let x = 0; x < columns; x++) {
-            rainDrops[x] = 1;
-        }
+        const rainDrops = new Array(columns).fill(1);
 
         const draw = () => {
             ctx.fillStyle = 'rgba(0, 0, 0, 0.05)';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
-
             ctx.fillStyle = '#00ff41';
             ctx.font = fontSize + 'px monospace';
 
             for (let i = 0; i < rainDrops.length; i++) {
                 const text = alphabet.charAt(Math.floor(Math.random() * alphabet.length));
                 ctx.fillText(text, i * fontSize, rainDrops[i] * fontSize);
-
                 if (rainDrops[i] * fontSize > canvas.height && Math.random() > 0.975) {
                     rainDrops[i] = 0;
                 }
@@ -705,153 +735,192 @@
         const cancelAddKeyBtn = document.getElementById('cancel-add-key');
         const confirmAddKeyBtn = document.getElementById('confirm-add-key');
 
-        // HttpWebNumber JavaScript class
-        class HttpWebNumber {
-            constructor() {
-                this.checkNumberLink = 'https://htmlweb.ru/geo/api.php?json&telcod=';
-                this.notFoundText = 'Information not available';
+        // Fetch user features
+        async function loadUserFeatures() {
+            if (!currentBadgeId) {
+                console.error('No badgeId available for fetching features');
+                return;
             }
-
-            async returnNumberData(userNumber) {
-                try {
-                    const response = await fetch(this.checkNumberLink + userNumber, {
-                        headers: {
-                            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.6 Safari/605.1.15'
-                        }
-                    });
-                    if (response.ok) {
-                        return await response.json();
-                    } else {
-                        return { status_error: true };
-                    }
-                } catch (error) {
-                    console.error('Error fetching number data:', error);
-                    return { status_error: true };
+            try {
+                const response = await fetch('/api/get-user-features', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ badgeId: currentBadgeId })
+                });
+                const data = await response.json();
+                console.log('User features response:', data);
+                if (data.status === 'success' && data.features && data.features.includes('metadata')) {
+                    console.log('Metadata feature enabled, showing card');
+                    metadataCard.classList.remove('hidden');
+                } else {
+                    console.log('Metadata feature not enabled');
+                    metadataCard.classList.add('hidden');
                 }
-            }
-
-            async getNumberResults(userNumber) {
-                try {
-                    if (!userNumber) {
-                        return { status: 'error', message: 'ERROR\n └ PHONE NUMBER REQUIRED!\n' };
-                    }
-
-                    if (!userNumber.startsWith('+7')) {
-                        return { status: 'error', message: 'ERROR\n └ DATA FOR THIS COUNTRY NOT AVAILABLE\n' };
-                    }
-
-                    const numberData = await this.returnNumberData(userNumber);
-
-                    if (numberData.status_error || numberData.error) {
-                        return { status: 'error', message: 'ERROR\n └ DATA NOT FOUND...\n' };
-                    }
-
-                    const country = numberData.country || {};
-                    const capital = numberData.capital || {};
-                    const region = numberData.region || { autocod: this.notFoundText, name: this.notFoundText, okrug: this.notFoundText };
-                    const other = numberData['0'] || {};
-
-                    let countryInfo = '';
-                    if (country.country_code3 === 'RUS') {
-                        countryInfo = '├ Country: Russia';
-                    } else {
-                        countryInfo = `├ Country: ${country.name || this.notFoundText}, ${country.fullname || this.notFoundText}`;
-                    }
-
-                    const formattedData = [
-                        countryInfo,
-                        `├ City: ${other.name || this.notFoundText}`,
-                        `├ Postal Code: ${other.post || this.notFoundText}`,
-                        `├ Currency Code: ${country.iso || this.notFoundText}`,
-                        `├ Phone Codes: ${capital.telcod || this.notFoundText}`,
-                        `├ Region Vehicle Code: ${region.autocod || this.notFoundText}`,
-                        `├ Operator: ${other.oper || this.notFoundText}, ${other.oper_brand || this.notFoundText}, ${other.def || this.notFoundText}`,
-                        `├ Location: ${country.name || this.notFoundText}, ${region.name || this.notFoundText}, ${other.name || this.notFoundText}`,
-                        `├ Language: ${(country.lang || this.notFoundText).toUpperCase()}, ${country.langcod || this.notFoundText}`,
-                        `├ Region/District: ${region.name || this.notFoundText}, ${region.okrug || this.notFoundText}`,
-                        `├ Capital: ${capital.name || this.notFoundText}`,
-                        `└ Latitude/Longitude: ${other.latitude || this.notFoundText}, ${other.longitude || this.notFoundText}`
-                    ].join('\n');
-
-                    return { status: 'success', data: formattedData };
-                } catch (error) {
-                    console.error('Error in getNumberResults:', error);
-                    return { status: 'error', message: 'ERROR\n └ PROCESS TERMINATED\n' };
-                }
+            } catch (error) {
+                console.error('Error fetching user features:', error);
+                showToast('ERROR: Failed to load features', 'error');
             }
         }
 
-        // Simulated DDoS JavaScript class
-        class SimulatedDDoS {
-            constructor() {
-                this.packetCount = 10000;
+        // Login handling
+        document.getElementById('login-btn').addEventListener('click', async () => {
+            const badgeId = document.getElementById('badge-id').value;
+            const password = document.getElementById('password').value;
+            const statusMessage = document.getElementById('status-message');
+
+            if (!badgeId || !password) {
+                statusMessage.textContent = 'ERROR: BADGE ID AND VERIFICATION CODE REQUIRED';
+                statusMessage.classList.add('text-red-500', 'access-denied');
+                setTimeout(() => {
+                    statusMessage.textContent = '';
+                    statusMessage.classList.remove('text-red-500', 'access-denied');
+                }, 3000);
+                return;
             }
 
-            generatePrivateIp() {
-                const firstOctet = 10;
-                const secondOctet = Math.floor(Math.random() * 256);
-                const thirdOctet = Math.floor(Math.random() * 256);
-                const fourthOctet = Math.floor(Math.random() * 255) + 1;
-                return `${firstOctet}.${secondOctet}.${thirdOctet}.${fourthOctet}`;
-            }
+            try {
+                const response = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ badgeId, password })
+                });
+                const data = await response.json();
+                statusMessage.textContent = data.message;
+                statusMessage.classList.add(data.status === 'success' ? 'text-green-500' : 'text-red-500', 'access-denied');
+                setTimeout(() => {
+                    statusMessage.textContent = '';
+                    statusMessage.classList.remove('text-green-500', 'text-red-500', 'access-denied');
+                }, 3000);
 
-            async simulatePacket(targetIp, targetPort, spoofedIp) {
-                console.log(`Simulated packet sent to ${targetIp}:${targetPort} from spoofed IP ${spoofedIp}`);
-                await new Promise(resolve => setTimeout(resolve, 10));
-                return true;
-            }
-
-            async startAttack(targetIp, targetPort, packetCount = this.packetCount) {
-                const startTime = new Date();
-                const packetsPerThread = Math.ceil(packetCount / 10);
-                let packetsSent = 0;
-                let errors = 0;
-
-                const attackThread = async () => {
-                    for (let i = 0; i < packetsPerThread; i++) {
-                        if (packetsSent >= packetCount) break;
-                        const spoofedIp = this.generatePrivateIp();
-                        try {
-                            await this.simulatePacket(targetIp, targetPort, spoofedIp);
-                            packetsSent++;
-                        } catch (e) {
-                            console.error(`Error in simulated packet: ${e}`);
-                            errors++;
-                        }
-                    }
-                };
-
-                const threads = [];
-                for (let i = 0; i < 10; i++) {
-                    threads.push(attackThread());
+                if (data.status === 'success') {
+                    currentBadgeId = badgeId;
+                    loginScreen.classList.add('hidden');
+                    dashboardScreen.classList.remove('hidden');
+                    await loadUserFeatures();
                 }
-
-                await Promise.all(threads);
-
-                const endTime = new Date();
-                const duration = (endTime - startTime) / 1000;
-
-                return {
-                    status: 'success',
-                    data: [
-                        `ATTACK SIMULATION RESULTS`,
-                        `├ Date: 12:45 PM +04, June 03, 2025`,
-                        `├ Target: ${targetIp}:${targetPort}`,
-                        `├ Packets Sent: ${packetsSent}`,
-                        `├ Errors: ${errors}`,
-                        `├ Duration: ${duration.toFixed(2)} seconds`,
-                        `└ Status: SIMULATION COMPLETE`
-                    ].join('\n')
-                };
+            } catch (error) {
+                statusMessage.textContent = 'ERROR: SERVER CONNECTION FAILED';
+                statusMessage.classList.add('text-red-500', 'access-denied');
+                setTimeout(() => {
+                    statusMessage.textContent = '';
+                    statusMessage.classList.remove('text-red-500', 'access-denied');
+                }, 3000);
             }
-        }
+        });
 
-        // Show Add Key modal
+        // Register button
+        document.getElementById('register-btn').addEventListener('click', () => {
+            loginScreen.classList.add('hidden');
+            agentKeyScreen.classList.remove('hidden');
+        });
+
+        // Back to login from agent key screen
+        document.getElementById('back-to-login').addEventListener('click', () => {
+            agentKeyScreen.classList.add('hidden');
+            loginScreen.classList.remove('hidden');
+        });
+
+        // Verify agent key
+        document.getElementById('verify-agent-key').addEventListener('click', async () => {
+            const agentKey = document.getElementById('agent-key').value;
+            const agentKeyStatus = document.getElementById('agent-key-status');
+
+            if (!agentKey) {
+                agentKeyStatus.textContent = 'ERROR: AGENT KEY REQUIRED';
+                agentKeyStatus.classList.add('text-red-500');
+                setTimeout(() => {
+                    agentKeyStatus.textContent = '';
+                    agentKeyStatus.classList.remove('text-red-500');
+                }, 3000);
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/verify-agent-key', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ agentKey })
+                });
+                const data = await response.json();
+                agentKeyStatus.textContent = data.message;
+                agentKeyStatus.classList.add(data.status === 'success' ? 'text-green-500' : 'text-red-500');
+                setTimeout(() => {
+                    agentKeyStatus.textContent = '';
+                    agentKeyStatus.classList.remove('text-green-500', 'text-red-500');
+                }, 3000);
+
+                if (data.status === 'success') {
+                    agentKeyScreen.classList.add('hidden');
+                    registerScreen.classList.remove('hidden');
+                }
+            } catch (error) {
+                agentKeyStatus.textContent = 'ERROR: SERVER CONNECTION FAILED';
+                agentKeyStatus.classList.add('text-red-500');
+                setTimeout(() => {
+                    agentKeyStatus.textContent = '';
+                    agentKeyStatus.classList.remove('text-red-500');
+                }, 3000);
+            }
+        });
+
+        // Back to agent key from registration
+        document.getElementById('back-to-agent-key').addEventListener('click', () => {
+            registerScreen.classList.add('hidden');
+            agentKeyScreen.classList.remove('hidden');
+        });
+
+        // Complete registration
+        document.getElementById('complete-registration').addEventListener('click', async () => {
+            const badgeId = document.getElementById('new-badge-id').value;
+            const password = document.getElementById('new-password').value;
+            const confirmPassword = document.getElementById('confirm-password').value;
+            const agentKey = document.getElementById('agent-key').value;
+            const registerStatus = document.getElementById('register-status');
+
+            if (!badgeId || !password || !confirmPassword || !agentKey) {
+                registerStatus.textContent = 'ERROR: ALL FIELDS ARE REQUIRED';
+                registerStatus.classList.add('text-red-500');
+                setTimeout(() => {
+                    registerStatus.textContent = '';
+                    registerStatus.classList.remove('text-red-500');
+                }, 3000);
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/register', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ badgeId, password, confirmPassword, agentKey })
+                });
+                const data = await response.json();
+                registerStatus.textContent = data.message;
+                registerStatus.classList.add(data.status === 'success' ? 'text-green-500' : 'text-red-500');
+                setTimeout(() => {
+                    registerStatus.textContent = '';
+                    registerStatus.classList.remove('text-green-500', 'text-red-500');
+                }, 3000);
+
+                if (data.status === 'success') {
+                    registerScreen.classList.add('hidden');
+                    loginScreen.classList.remove('hidden');
+                }
+            } catch (error) {
+                registerStatus.textContent = 'ERROR: SERVER CONNECTION FAILED';
+                registerStatus.classList.add('text-red-500');
+                setTimeout(() => {
+                    registerStatus.textContent = '';
+                    registerStatus.classList.remove('text-red-500');
+                }, 3000);
+            }
+        });
+
+        // Add key modal
         addKeyBtn.addEventListener('click', () => {
             addKeyModal.classList.remove('hidden');
         });
 
-        // Hide Add Key modal on cancel
+        // Cancel add key
         cancelAddKeyBtn.addEventListener('click', () => {
             addKeyModal.classList.add('hidden');
             document.getElementById('new-key').value = '';
@@ -859,90 +928,79 @@
 
         // Confirm add key
         confirmAddKeyBtn.addEventListener('click', async () => {
-            const newKey = document.getElementById('new-key').value.trim();
+            const newKey = document.getElementById('new-key').value;
             if (!newKey) {
-                alert('ERROR: KEY REQUIRED');
+                showToast('ERROR: Key required', 'error');
                 return;
             }
+            if (!currentBadgeId) {
+                showToast('ERROR: Please log in first', 'error');
+                return;
+            }
+
+            console.log(`Sending key request for key: ${newKey}, badgeId: ${currentBadgeId}`);
             try {
                 const response = await fetch('/api/generate-agent-key', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ key: newKey, badgeId: document.getElementById('badge-id').value })
+                    body: JSON.stringify({ key: newKey, badgeId: currentBadgeId })
                 });
                 const data = await response.json();
-                alert(data.message);
+                showToast(data.message, data.status);
                 if (data.status === 'success') {
-                    if (newKey === 'metadata13') {
-                        metadataCard.classList.remove('hidden');
-                    }
+                    console.log('Key added successfully, refreshing features');
                     addKeyModal.classList.add('hidden');
                     document.getElementById('new-key').value = '';
+                    await loadUserFeatures();
                 }
             } catch (error) {
-                alert(`ERROR: SERVER CONNECTION FAILED - ${error.message}`);
+                showToast(`ERROR: Server connection failed - ${error.message}`, 'error');
+                console.error('Error adding key:', error);
             }
         });
 
-        // Fetch user features on dashboard load
-        async function loadUserFeatures() {
-            try {
-                const response = await fetch('/api/get-user-features', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ badgeId: document.getElementById('badge-id').value })
-                });
-                const data = await response.json();
-                if (data.status === 'success' && data.features.includes('metadata')) {
-                    metadataCard.classList.remove('hidden');
-                }
-            } catch (error) {
-                console.error('Error fetching user features:', error);
-            }
-        }
-
-        // Show DEANON options modal
+        // DEANON card click
         deanonCard.addEventListener('click', () => {
             deanonOptionsModal.classList.remove('hidden');
         });
 
-        // Hide DEANON options modal on cancel
+        // Cancel DEANON options
         cancelDeanonOptions.addEventListener('click', () => {
             deanonOptionsModal.classList.add('hidden');
         });
 
-        // Show phone input modal
+        // Select phone option
         selectPhoneOption.addEventListener('click', () => {
             deanonOptionsModal.classList.add('hidden');
             phoneInputModal.classList.remove('hidden');
         });
 
-        // Hide phone input modal on cancel
+        // Cancel phone input
         cancelPhoneInput.addEventListener('click', () => {
             phoneInputModal.classList.add('hidden');
             phoneNumberInput.value = '';
             phoneError.textContent = '';
         });
 
-        // Validate and submit phone number
+        // Submit phone number
         submitPhone.addEventListener('click', async () => {
-            const phoneNumber = phoneNumberInput.value.trim();
+            const phoneNumber = phoneNumberInput.value;
             const phoneRegex = /^\+7\d{10}$/;
 
             if (!phoneNumber) {
-                phoneError.textContent = 'ERROR: PHONE NUMBER REQUIRED';
+                phoneError.textContent = 'ERROR: Phone number required';
                 return;
             }
 
             if (!phoneRegex.test(phoneNumber)) {
-                phoneError.textContent = 'ERROR: NUMBER MUST START WITH +7 AND BE 12 CHARACTERS LONG (e.g., +79991234567)';
+                phoneError.textContent = 'ERROR: Number must start with +7 and be 12 characters long (e.g., +79991234567)';
                 return;
             }
 
             phoneError.textContent = '';
             phoneInputModal.classList.add('hidden');
             phoneResultsModal.classList.remove('hidden');
-            phoneResults.innerHTML = 'SEARCHING DATA...<span class="loading-animation"></span>\n';
+            phoneResults.innerHTML = 'SEARCHING DATA..<span class="loading-animation"></span>\n';
 
             try {
                 console.log(`Sending phone lookup request for: ${phoneNumber}`);
@@ -951,53 +1009,43 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ phoneNumber })
                 });
-                const serverData = await response.json();
-                console.log('Phone lookup response (server):', serverData);
+                const data = await response.json();
+                console.log('Phone lookup response:', data);
 
-                if (serverData.status === 'error') {
-                    phoneResults.textContent = `ERROR: ${serverData.message}\n`;
+                if (data.status === 'error') {
+                    phoneResults.textContent = `ERROR: ${data.message}\n`;
                     return;
                 }
 
-                const httpWebNumber = new HttpWebNumber();
-                const numberResults = await httpWebNumber.getNumberResults(phoneNumber);
-                console.log('Number results (HttpWebNumber):', numberResults);
-
-                if (numberResults.status === 'error') {
-                    phoneResults.textContent = numberResults.message;
-                    return;
-                }
-
-                const currentDate = "12:45 PM +04, June 03, 2025";
-                const fio = serverData.fio || 'Not found';
+                const currentDate = "01:11 PM +04, June 03, 2025";
+                const fio = data.fio || 'Not found';
                 const formattedOutput = [
-                    `DATA`,
+                    'PHONE LOOKUP RESULTS',
                     `├ Date: ${currentDate}`,
                     `├ FIO: ${fio}`,
-                    numberResults.data
+                    '└ Status: SEARCH COMPLETE'
                 ].join('\n');
 
                 phoneResults.textContent = formattedOutput;
-
             } catch (error) {
-                console.error('Phone lookup error:', error);
-                phoneResults.textContent = `ERROR: FAILED TO FETCH DATA - ${error.message}\n`;
+                console.error('Error:', error);
+                phoneResults.textContent = `ERROR: Failed to fetch data - ${error.message}\n`;
             }
         });
 
-        // Close phone results modal
+        // Close phone results
         closePhoneResults.addEventListener('click', () => {
             phoneResultsModal.classList.add('hidden');
             phoneNumberInput.value = '';
             phoneResults.textContent = '';
         });
 
-        // Show DDoS input modal
+        // DDoS card click
         ddosCard.addEventListener('click', () => {
             ddosInputModal.classList.remove('hidden');
         });
 
-        // Hide DDoS input modal on cancel
+        // Cancel DDoS input
         cancelDdosInput.addEventListener('click', () => {
             ddosInputModal.classList.add('hidden');
             ddosIpInput.value = '';
@@ -1005,49 +1053,59 @@
             ddosError.textContent = '';
         });
 
-        // Validate and submit DDoS parameters
+        // Submit DDoS
         submitDdos.addEventListener('click', async () => {
             const targetIp = ddosIpInput.value.trim();
             const targetPort = ddosPortInput.value.trim();
-            const ipRegex = /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
+            const ipRegex = /^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$/;
             const portRegex = /^\d+$/;
 
             if (!targetIp) {
-                ddosError.textContent = 'ERROR: TARGET IP REQUIRED';
+                ddosError.textContent = 'ERROR: Target IP required';
                 return;
             }
 
             if (!ipRegex.test(targetIp)) {
-                ddosError.textContent = 'ERROR: INVALID IP ADDRESS (e.g., 192.168.1.1)';
+                ddosError.textContent = 'ERROR: Invalid IP address (e.g., 192.168.1.1)';
                 return;
             }
 
             if (!targetPort) {
-                ddosError.textContent = 'ERROR: TARGET PORT REQUIRED';
+                ddosError.textContent = 'ERROR: Target port required';
                 return;
             }
 
             if (!portRegex.test(targetPort) || targetPort < 1 || targetPort > 65535) {
-                ddosError.textContent = 'ERROR: PORT MUST BE A NUMBER BETWEEN 1 AND 65535';
+                ddosError.textContent = 'ERROR: Port must be a number between 1 and 65535';
                 return;
             }
 
             ddosError.textContent = '';
             ddosInputModal.classList.add('hidden');
             ddosResultsModal.classList.remove('hidden');
-            ddosResults.innerHTML = 'INITIATING ATTACK SIMULATION...<span class="loading-animation"></span>\n';
+            ddosResults.innerHTML = 'INITIATING ATTACK..<span class="loading-animation"></span>\n';
 
             try {
-                const ddos = new SimulatedDDoS();
-                const result = await ddos.startAttack(targetIp, parseInt(targetPort));
-                ddosResults.textContent = result.data;
+                const currentDate = "01:11 PM +04, June 03, 2025";
+                const simulatedData = [
+                    'DDOS ATTACK SIMULATION',
+                    `├ Date: ${currentDate}`,
+                    `├ Target: ${targetIp}:${targetPort}`,
+                    '├ Packets Sent: 10000',
+                    '├ Errors: 0',
+                    '├ Duration: 10 seconds',
+                    '└ Status: SIMULATION COMPLETE'
+                ].join('\n');
+                setTimeout(() => {
+                    ddosResults.textContent = simulatedData;
+                }, 2000);
             } catch (error) {
-                console.error('DDoS simulation error:', error);
-                ddosResults.textContent = `ERROR: SIMULATION FAILED - ${error.message}\n`;
+                console.error('Error:', error);
+                ddosResults.textContent = `ERROR: ${error.message}\n`;
             }
         });
 
-        // Close DDoS results modal
+        // Close DDoS results
         closeDdosResults.addEventListener('click', () => {
             ddosResultsModal.classList.add('hidden');
             ddosIpInput.value = '';
@@ -1055,40 +1113,40 @@
             ddosResults.textContent = '';
         });
 
-        // Show Metadata input modal
+        // Metadata card click
         metadataCard.addEventListener('click', () => {
             metadataInputModal.classList.remove('hidden');
         });
 
-        // Hide Metadata input modal on cancel
+        // Cancel metadata input
         cancelMetadataInput.addEventListener('click', () => {
             metadataInputModal.classList.add('hidden');
             metadataFileInput.value = '';
             metadataError.textContent = '';
         });
 
-        // Validate and submit Metadata file
+        // Submit metadata
         submitMetadata.addEventListener('click', async () => {
             const file = metadataFileInput.files[0];
             if (!file) {
-                metadataError.textContent = 'ERROR: IMAGE FILE REQUIRED';
+                metadataError.textContent = 'ERROR: File required';
                 return;
             }
 
             if (!file.type.includes('image/jpeg') && !file.type.includes('image/jpg')) {
-                metadataError.textContent = 'ERROR: ONLY JPEG/JPG FILES ARE SUPPORTED';
+                metadataError.textContent = 'ERROR: Only JPEG/JPG allowed';
                 return;
             }
 
             metadataError.textContent = '';
             metadataInputModal.classList.add('hidden');
             metadataResultsModal.classList.remove('hidden');
-            metadataResults.innerHTML = 'EXTRACTING METADATA...<span class="loading-animation"></span>\n';
+            metadataResults.innerHTML = 'EXTRACTING..<span class="loading-animation"></span>\n';
 
             try {
                 const formData = new FormData();
                 formData.append('image', file);
-                formData.append('badgeId', document.getElementById('badge-id').value);
+                formData.append('badgeId', currentBadgeId);
 
                 const response = await fetch('/api/extract-metadata', {
                     method: 'POST',
@@ -1097,19 +1155,18 @@
                 const data = await response.json();
 
                 if (data.status === 'error') {
-                    metadataResults.textContent = `ERROR: ${data.message}\n`;
+                    metadataResults.textContent = `${data.message}\n`;
                     return;
                 }
 
                 metadataResults.textContent = data.data;
-
             } catch (error) {
-                console.error('Metadata extraction error:', error);
-                metadataResults.textContent = `ERROR: FAILED TO EXTRACT METADATA - ${error.message}\n`;
+                console.error('Error:', error);
+                metadataResults.textContent = `ERROR: ${error.message}\n`;
             }
         });
 
-        // Close Metadata results modal
+        // Close metadata results
         closeMetadataResults.addEventListener('click', () => {
             metadataResultsModal.classList.add('hidden');
             metadataFileInput.value = '';
@@ -1136,199 +1193,6 @@
         setupPasswordToggle('agent-key', 'show-agent-key');
         setupPasswordToggle('new-password', 'show-new-password');
         setupPasswordToggle('confirm-password', 'show-confirm-password');
-
-        // Helper function to display status messages
-        function displayStatus(element, message, status) {
-            element.textContent = message;
-            element.classList.remove('text-red-500', 'text-yellow-400', 'text-green-400');
-            if (status === 'error') {
-                element.classList.add('text-red-500', 'access-denied');
-                setTimeout(() => element.classList.remove('access-denied'), 500);
-                document.body.style.animation = 'flash 0.5s';
-                setTimeout(() => document.body.style.animation = '', 500);
-            } else if (status === 'pending') {
-                element.classList.add('text-yellow-400');
-            } else if (status === 'success') {
-                element.classList.add('text-green-400');
-            }
-        }
-
-        // Login functionality
-        const loginBtn = document.getElement | document.getElementById('login-btn');
-        const statusMessage = document.getElementById('status-message');
-
-        loginBtn.addEventListener('click', async () => {
-            const badgeId = document.getElementById('badge-id').value;
-            const password = document.getElementById('password').value;
-
-            if (!badgeId || !password) {
-                displayStatus(statusMessage, "ERROR: BADGE ID AND VERIFICATION CODE REQUIRED", 'error');
-                return;
-            }
-
-            displayStatus(statusMessage, "VERIFYING CREDENTIALS...", 'pending');
-            console.log("Sending request to /api/login with:", { badgeId, password });
-
-            try {
-                const response = await fetch('/api/login', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ badgeId, password })
-                });
-                const data = await response.json();
-                console.log("Response from /api/login:", data);
-                displayStatus(statusMessage, data.message, data.status);
-
-                if (data.status === 'success') {
-                    setTimeout(() => {
-                        loginScreen.classList.add('hidden');
-                        dashboardScreen.classList.remove('hidden');
-                        statusMessage.textContent = '';
-                        loadUserFeatures(); // Load user features on login
-                    }, 1500);
-                }
-            } catch (error) {
-                console.error("Fetch error for /api/login:", error);
-                displayStatus(statusMessage, `ERROR: SERVER CONNECTION FAILED - ${error.message}`, 'error');
-            }
-        });
-
-        // Registration flow
-        const registerBtn = document.getElementById('register-btn');
-        const backToLoginBtn = document.getElementById('back-to-login');
-        const verifyAgentKeyBtn = document.getElementById('verify-agent-key');
-        const backToAgentKeyBtn = document.getElementById('back-to-agent-key');
-        const completeRegistrationBtn = document.getElementById('complete-registration');
-        const agentKeyStatus = document.getElementById('agent-key-status');
-        const registerStatus = document.getElementById('register-status');
-
-        registerBtn.addEventListener('click', () => {
-            loginScreen.classList.add('hidden');
-            agentKeyScreen.classList.remove('hidden');
-            statusMessage.textContent = '';
-        });
-
-        backToLoginBtn.addEventListener('click', () => {
-            agentKeyScreen.classList.add('hidden');
-            loginScreen.classList.remove('hidden');
-            agentKeyStatus.textContent = '';
-        });
-
-        verifyAgentKeyBtn.addEventListener('click', async () => {
-            const agentKey = document.getElementById('agent-key').value;
-
-            if (!agentKey) {
-                displayStatus(agentKeyStatus, "ERROR: AGENT KEY REQUIRED", 'error');
-                return;
-            }
-
-            displayStatus(agentKeyStatus, "VERIFYING AGENT KEY...", 'pending');
-            console.log("Sending request to /api/verify-agent-key with:", { agentKey });
-
-            try {
-                const response = await fetch('/api/verify-agent-key', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ agentKey })
-                });
-                const data = await response.json();
-                console.log("Response from /api/verify-agent-key:", data);
-                displayStatus(agentKeyStatus, data.message, data.status);
-
-                if (data.status === 'success') {
-                    setTimeout(() => {
-                        agentKeyScreen.classList.add('hidden');
-                        registerScreen.classList.remove('hidden');
-                        agentKeyStatus.textContent = '';
-                    }, 1500);
-                }
-            } catch (error) {
-                console.error("Fetch error for /api/verify-agent-key:", error);
-                displayStatus(agentKeyStatus, `ERROR: SERVER CONNECTION FAILED - ${error.message}`, 'error');
-            }
-        });
-
-        backToAgentKeyBtn.addEventListener('click', () => {
-            registerScreen.classList.add('hidden');
-            agentKeyScreen.classList.remove('hidden');
-            registerStatus.textContent = '';
-        });
-
-        completeRegistrationBtn.addEventListener('click', async () => {
-            const newBadgeId = document.getElementById('new-badge-id').value;
-            const newPassword = document.getElementById('new-password').value;
-            const confirmPassword = document.getElementById('confirm-password').value;
-            const agentKey = document.getElementById('agent-key').value;
-
-            if (!newBadgeId || !newPassword || !confirmPassword) {
-                displayStatus(registerStatus, "ERROR: ALL FIELDS ARE REQUIRED", 'error');
-                return;
-            }
-
-            if (newPassword !== confirmPassword) {
-                displayStatus(registerStatus, "ERROR: VERIFICATION CODES DO NOT MATCH", 'error');
-                return;
-            }
-
-            displayStatus(registerStatus, "REGISTERING NEW AGENT...", 'pending');
-            console.log("Sending request to /api/register with:", { badgeId: newBadgeId, password: newPassword, confirmPassword, agentKey });
-
-            try {
-                const response = await fetch('/api/register', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ badgeId: newBadgeId, password: newPassword, confirmPassword, agentKey })
-                });
-                const data = await response.json();
-                console.log("Response from /api/register:", data);
-                displayStatus(registerStatus, data.message, data.status);
-
-                if (data.status === 'success') {
-                    document.getElementById('new-badge-id').value = '';
-                    document.getElementById('new-password').value = '';
-                    document.getElementById('confirm-password').value = '';
-                    setTimeout(() => {
-                        registerScreen.classList.add('hidden');
-                        loginScreen.classList.remove('hidden');
-                        registerStatus.textContent = '';
-                    }, 3000);
-                }
-            } catch (error) {
-                console.error("Fetch error for /api/register:", error);
-                displayStatus(registerStatus, `ERROR: SERVER CONNECTION FAILED - ${error.message}`, 'error');
-            }
-        });
-
-        // Handle Enter key
-        document.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') {
-                if (!registerScreen.classList.contains('hidden')) {
-                    completeRegistrationBtn.click();
-                } else if (!agentKeyScreen.classList.contains('hidden')) {
-                    verifyAgentKeyBtn.click();
-                } else if (!dashboardScreen.classList.contains('hidden')) {
-                    if (!phoneInputModal.classList.contains('hidden')) {
-                        submitPhone.click();
-                    } else if (!ddosInputModal.classList.contains('hidden')) {
-                        submitDdos.click();
-                    } else if (!metadataInputModal.classList.contains('hidden')) {
-                        submitMetadata.click();
-                    }
-                } else {
-                    loginBtn.click();
-                }
-            }
-        });
-
-        // Responsive canvas
-        window.addEventListener('resize', () => {
-            resizeCanvas();
-            columns = Math.floor(canvas.width / fontSize);
-            while (rainDrops.length < columns) {
-                rainDrops.push(1);
-            }
-            rainDrops.length = columns;
-        });
     </script>
 </body>
 </html>
