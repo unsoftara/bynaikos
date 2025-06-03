@@ -27,8 +27,8 @@ logger = logging.getLogger(__name__)
 logging.getLogger('telethon').setLevel(logging.DEBUG)
 
 # Конфигурация
-API_ID = "27683579"
-API_HASH = "a1d0fc7d0c9a41ff5e0ae6a6ed8e2dbb"
+API_ID = "25142891"
+API_HASH = "80993bef31f6c8d9ed40d97589407c11"
 SESSION_STRING = "1ApWapzMBu0Bepyw_xn-29h8anJZojALZTy4mLYK6rZGVk8UAEh6qr_L4blqeJ_82XObCcu8jBofOL9KZJg7j0l3oqcvkYDD7I5pC4jq87PzWLAPUqLA0hKdmX88TbBjaP-GXkIKUq20PR9W8c1aSfOs_OzywOsS955xie7SUUDS3VNmQekMDW3mr2wk2Ad8u7tnzndUS-4v2Cgjq_AWmjrpsd_Us3uOR_nTkqjYV8911LHAjyl9UleI8mBF8NWdJEir0YXE0h_yfchFyVDFP387vwTIq7kTxGU-dr8vY7SUp_vmCjnNXRgqEYmzgkn-sNVide5VqnhVHs9hS-dia32-jGq2TEWo="
 TARGET_BOT = "bini228777_bot"
 
