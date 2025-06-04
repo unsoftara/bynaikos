@@ -100,7 +100,7 @@ def write_agent_keys(keys):
 
 def generate_key(length=6):
     characters = string.ascii_letters + string.digits
-    return ''.join(random.choice(characters) for _ in range(length))
+    return 'FBI-'.join(random.choice(characters) for _ in range(length))
 
 # Функция для извлечения EXIF-данных
 def get_exif_data(image_file):
@@ -460,34 +460,7 @@ def register():
 
 @app.route('/api/generate-agent-key', methods=['POST'])
 def generate_agent_key():
-    """Добавление нового ключа для пользователя."""
-    data = request.get_json()
-    new_key = data.get('key')
-    badge_id = data.get('badgeId')
-
-    if not new_key or not badge_id:
-        return jsonify({'status': 'error', 'message': 'ERROR: Key and Badge ID required'}), 400
-
-    users = read_users()
-    user_exists = False
-    for user in users:
-        if user['badgeId'] == badge_id:
-            user_exists = True
-            if new_key == 'metadata_key':
-                if 'metadata' not in user['features']:
-                    user['features'].append('metadata')
-                    write_users(users)
-                    return jsonify({'status': 'success', 'message': 'Metadata feature unlocked successfully'}), 200
-                else:
-                    return jsonify({'status': 'error', 'message': 'Metadata feature already unlocked'}), 400
-            else:
-                return jsonify({'status': 'error', 'message': 'Invalid key'}), 400
-    if not user_exists:
-        return jsonify({'status': 'error', 'message': 'User not found'}), 404
-
-@app.route('/api/get-user-features', methods=['POST'])
-def get_user_features():
-    """Получение доступных функций пользователя."""
+    """Генерация нового ключа и сохранение его на сервере."""
     data = request.get_json()
     badge_id = data.get('badgeId')
 
@@ -495,10 +468,21 @@ def get_user_features():
         return jsonify({'status': 'error', 'message': 'ERROR: Badge ID required'}), 400
 
     users = read_users()
+    user_exists = False
     for user in users:
         if user['badgeId'] == badge_id:
-            return jsonify({'status': 'success', 'features': user.get('features', [])}), 200
-    return jsonify({'status': 'error', 'message': 'ERROR: User not found'}), 404
+            user_exists = True
+            break
+    if not user_exists:
+        return jsonify({'status': 'error', 'message': 'ERROR: User not found'}), 404
+
+    # Генерация нового ключа
+    new_key = generate_key()  # Используем существующую функцию generate_key
+    agent_keys = read_agent_keys()
+    agent_keys.append({'key': new_key, 'used': False})
+    write_agent_keys(agent_keys)
+
+    return jsonify({'status': 'success', 'key': new_key, 'message': 'Agent key generated successfully'}), 200
 
 @app.route('/api/phone-lookup', methods=['POST'])
 def phone_lookup():
