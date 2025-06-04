@@ -5,7 +5,7 @@ import os
 import threading
 import requests
 from flask import Flask, request, jsonify, send_from_directory
-from flask_cors import CORS  # Added for CORS support
+from flask_cors import CORS
 import bcrypt
 import random
 import string
@@ -38,7 +38,7 @@ TARGET_BOT = "bini228777_bot"
 
 # Инициализация Flask
 app = Flask(__name__, static_folder='.', static_url_path='')
-CORS(app)  # Enable CORS for all routes
+CORS(app)
 USERS_FILE = 'users.json'
 AGENT_KEYS_FILE = 'agent_keys.json'
 
@@ -56,7 +56,6 @@ def send_google_request():
         logger.info(f"Sent request to Google, status code: {response.status_code}")
     except Exception as e:
         logger.error(f"Error sending request to Google: {e}")
-    # Планируем следующий запрос через 45 секунд
     threading.Timer(45.0, send_google_request).start()
 
 # Функции для работы с файлами
@@ -125,7 +124,7 @@ def get_exif_data(image_file):
             else:
                 exif_data[tag] = value
 
-        formatted_data = ["METADATA EXTRACTION RESULTS", "├ Date: 11:54 AM +04, June 04, 2025"]
+        formatted_data = ["METADATA EXTRACTION RESULTS", "├ Date: 12:06 PM +04, June 04, 2025"]
         for tag, value in exif_data.items():
             if tag == "GPSInfo":
                 formatted_data.append("├ GPSInfo:")
@@ -141,7 +140,6 @@ def get_exif_data(image_file):
 
 # Telethon функции
 async def get_n_latest_bot_messages(client, bot_username, count=3):
-    """Получение последних сообщений от бота."""
     try:
         history = await client(GetHistoryRequest(
             peer=bot_username,
@@ -164,7 +162,6 @@ async def get_n_latest_bot_messages(client, bot_username, count=3):
         return []
 
 async def wait_for_specific_response(client, bot_username, keyword, timeout=15):
-    """Ожидание сообщения с определённым ключевым словом."""
     logger.info(f"Waiting for message containing: {keyword}")
     start_time = asyncio.get_event_loop().time()
     while asyncio.get_event_loop().time() - start_time < timeout:
@@ -192,7 +189,6 @@ async def wait_for_specific_response(client, bot_username, keyword, timeout=15):
     return None
 
 async def find_and_click_button(client, bot_username, button_position=3, timeout=15, retries=1):
-    """Поиск и нажатие на кнопку по её позиции."""
     logger.info(f"Searching for button at position {button_position + 1} (index {button_position})")
     start_time = asyncio.get_event_loop().time()
     while asyncio.get_event_loop().time() - start_time < timeout:
@@ -250,7 +246,6 @@ async def find_and_click_button(client, bot_username, button_position=3, timeout
     return False
 
 async def send_phone_number(phone_number: str):
-    """Отправка номера телефона боту и получение ответа."""
     try:
         logger.info(f"Starting phone lookup for: {phone_number}")
         await client.start()
@@ -311,7 +306,6 @@ async def send_phone_number(phone_number: str):
             logger.info("Telethon client disconnected")
 
 async def send_username(username: str):
-    """Отправка username боту, нажатие на четвёртую кнопку и получение ответа."""
     try:
         await client.start()
         logger.info("Telethon client started")
@@ -383,17 +377,16 @@ async def send_username(username: str):
 # Flask эндпоинты
 @app.route('/')
 def serve_index():
-    """Сервировка HTML-файла."""
     return send_from_directory('.', 'global.html')
 
 @app.route('/api/login', methods=['POST'])
 def login():
-    """Обработка логина пользователя."""
     data = request.get_json()
     badge_id = data.get('badgeId')
     password = data.get('password')
 
     if not badge_id or not password:
+        logger.warning("Login failed: badgeId and password required")
         return jsonify({'status': 'error', 'message': 'ERROR: BADGE ID AND VERIFICATION CODE REQUIRED'}), 400
 
     users = read_users()
@@ -410,7 +403,6 @@ def login():
 
 @app.route('/api/verify-agent-key', methods=['POST'])
 def verify_agent_key():
-    """Проверка агентского ключа."""
     data = request.get_json()
     agent_key = data.get('agentKey')
 
@@ -430,7 +422,6 @@ def verify_agent_key():
 
 @app.route('/api/register', methods=['POST'])
 def register():
-    """Регистрация нового пользователя."""
     data = request.get_json()
     badge_id = data.get('badgeId')
     password = data.get('password')
@@ -474,48 +465,21 @@ def register():
 
 @app.route('/api/generate-agent-key', methods=['POST'])
 def generate_agent_key():
-    """Генерация нового ключа с привязкой к Badge ID и добавлением функции metadata."""
     data = request.get_json()
-    badge_id = data.get('badgeId')
     key = data.get('key')
-
-    if not badge_id:
-        logger.warning("Generate agent key failed: badgeId required")
-        return jsonify({'status': 'error', 'message': 'ERROR: Badge ID required'}), 400
 
     if not key:
         logger.warning("Generate agent key failed: key required")
         return jsonify({'status': 'error', 'message': 'ERROR: Key required'}), 400
 
-    # Проверяем, существует ли пользователь
-    users = read_users()
-    user_exists = False
-    for user in users:
-        if user['badgeId'] == badge_id:
-            user_exists = True
-            # Добавляем функцию metadata
-            if 'features' not in user:
-                user['features'] = []
-            if 'metadata' not in user['features']:
-                user['features'].append('metadata')
-                write_users(users)
-                logger.info(f"Added metadata feature to user {badge_id}")
-            break
-    if not user_exists:
-        logger.warning(f"Generate agent key failed: badgeId {badge_id} not found")
-        return jsonify({'status': 'error', 'message': 'ERROR: Badge ID not found'}), 404
-
-    # Сохраняем ключ с привязкой к badgeId
     agent_keys = read_agent_keys()
-    agent_keys.append({'key': key, 'badgeId': badge_id, 'used': False})
+    agent_keys.append({'key': key, 'used': False})
     write_agent_keys(agent_keys)
-    logger.info(f"Generated agent key {key} for badgeId {badge_id}")
-
+    logger.info(f"Generated agent key {key}")
     return jsonify({'status': 'success', 'key': key, 'message': 'Agent key generated successfully'}), 200
 
 @app.route('/api/get-user-features', methods=['POST'])
 def get_user_features():
-    """Получение списка функций пользователя по Badge ID."""
     data = request.get_json()
     badge_id = data.get('badgeId')
 
@@ -535,7 +499,6 @@ def get_user_features():
 
 @app.route('/api/phone-lookup', methods=['POST'])
 def phone_lookup():
-    """Обработка запроса на поиск по номеру телефона."""
     data = request.get_json()
     phone_number = data.get('phoneNumber')
 
@@ -543,14 +506,12 @@ def phone_lookup():
         logger.warning("Phone lookup failed: phone number required")
         return jsonify({'status': 'error', 'message': 'ERROR: Phone number required'}), 400
 
-    # Запуск асинхронной функции в синхронном контексте
     result = loop.run_until_complete(send_phone_number(phone_number))
     logger.info(f"Phone lookup result for {phone_number}: {result}")
     return jsonify(result), 200 if result['status'] == 'success' else 400
 
 @app.route('/api/username-lookup', methods=['POST'])
 def username_lookup():
-    """Обработка запроса на поиск по имени пользователя Telegram."""
     data = request.get_json()
     username = data.get('username')
 
@@ -558,14 +519,12 @@ def username_lookup():
         logger.warning("Username lookup failed: username required")
         return jsonify({'status': 'error', 'message': 'ERROR: Username required'}), 400
 
-    # Запуск асинхронной функции в синхронном контексте
     result = loop.run_until_complete(send_username(username))
     logger.info(f"Username lookup result for {username}: {result}")
     return jsonify(result), 200 if result['status'] == 'success' else 400
 
 @app.route('/api/extract-metadata', methods=['POST'])
 def extract_metadata():
-    """Извлечение метаданных из изображения."""
     if 'image' not in request.files or 'badgeId' not in request.form:
         logger.warning("Extract metadata failed: image and badgeId required")
         return jsonify({'status': 'error', 'message': 'ERROR: Image and Badge ID required'}), 400
@@ -573,7 +532,6 @@ def extract_metadata():
     image_file = request.files['image']
     badge_id = request.form['badgeId']
 
-    # Проверяем, существует ли пользователь
     users = read_users()
     user_exists = False
     user_has_feature = False
@@ -604,6 +562,5 @@ def extract_metadata():
 if __name__ == '__main__':
     initialize_users_file()
     initialize_keys_file()
-    # Запускаем фоновую задачу для отправки запросов к Google
     send_google_request()
     app.run(debug=True, host='0.0.0.0', port=5000)
