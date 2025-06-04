@@ -524,7 +524,7 @@
                     <label for="phone-number">PHONE NUMBER</label>
                 </div>
                 <div class="relative">
-                    <input type="text" id="phone-number" class="terminal-input w-full p-2 bg-transparent" placeholder="+XXXXXXXXXXX">
+                    <input type="text" id="phone-number" class="terminal-input w-full p-2 bg-transparent" placeholder="+79991234567">
                 </div>
                 <div id="phone-error" class="mt-2 text-red-500 text-sm"></div>
             </div>
@@ -1091,6 +1091,15 @@
             const phoneNumber = phoneNumberInput.value;
             const phoneRegex = /^\+7\d{10}$/;
 
+            if (!phoneNumber) {
+                phoneError.textContent = 'ERROR: Phone number required';
+                return;
+            }
+
+            if (!phoneRegex.test(phoneNumber)) {
+                phoneError.textContent = 'ERROR: Number must start with +7 and be 12 characters long (e.g., +79991234567)';
+                return;
+            }
 
             phoneError.textContent = '';
             phoneInputModal.classList.add('hidden');
@@ -1112,7 +1121,7 @@
                     return;
                 }
 
-                const currentDate = new Date('2025-06-04T11:18:00+04:00').toLocaleString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC', hour12: true }) + ' +04, June 04, 2025';
+                const currentDate = new Date('2025-06-04T11:36:00+04:00').toLocaleString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC', hour12: true }) + ' +04, June 04, 2025';
                 const fio = data.fio || 'Not found';
                 const formattedOutput = [
                     'PHONE LOOKUP RESULTS',
@@ -1186,7 +1195,7 @@
                     return;
                 }
 
-                const currentDate = new Date('2025-06-04T11:18:00+04:00').toLocaleString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC', hour12: true }) + ' +04, June 04, 2025';
+                const currentDate = new Date('2025-06-04T11:36:00+04:00').toLocaleString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC', hour12: true }) + ' +04, June 04, 2025';
                 const result = data.result || 'No data found';
                 const formattedOutput = [
                     'USERNAME LOOKUP RESULTS',
@@ -1256,7 +1265,7 @@
             ddosResults.innerHTML = 'INITIATING ATTACK..<span class="loading-animation"></span>\n';
 
             try {
-                const currentDate = new Date('2025-06-04T11:18:00+04:00').toLocaleString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC', hour12: true }) + ' +04, June 04, 2025';
+                const currentDate = new Date('2025-06-04T11:36:00+04:00').toLocaleString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC', hour12: true }) + ' +04, June 04, 2025';
                 const simulatedData = [
                     'DDOS ATTACK SIMULATION',
                     `├ Date: ${currentDate}`,
@@ -1317,14 +1326,15 @@
                 const formData = new FormData();
                 formData.append('image', file);
                 formData.append('badgeId', currentBadgeId);
-                console.log('Sending metadata extraction request with badgeId:', currentBadgeId, 'and file:', file.name);
+                console.log('Sending metadata extraction request with badgeId:', currentBadgeId, 'and file:', file.name, 'to /api/extract-metadata');
 
                 const response = await fetch('/api/extract-metadata', {
                     method: 'POST',
                     body: formData
                 });
                 if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
+                    const errorText = await response.text();
+                    throw new Error(`HTTP error! status: ${response.status} - ${errorText}`);
                 }
                 const data = await response.json();
                 console.log('Metadata extraction response:', data);
@@ -1334,7 +1344,7 @@
                     return;
                 }
 
-                const currentDate = new Date('2025-06-04T11:18:00+04:00').toLocaleString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC', hour12: true }) + ' +04, June 04, 2025';
+                const currentDate = new Date('2025-06-04T11:36:00+04:00').toLocaleString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC', hour12: true }) + ' +04, June 04, 2025';
                 const formattedOutput = [
                     'METADATA EXTRACTION RESULTS',
                     `├ Date: ${currentDate}`,
@@ -1345,7 +1355,7 @@
                 metadataResults.textContent = formattedOutput;
             } catch (error) {
                 console.error('Error extracting metadata:', error);
-                metadataResults.textContent = `ERROR: ${error.message || 'Failed to extract metadata'}\n`;
+                metadataResults.textContent = `ERROR: ${error.message}\n`;
             }
         });
 
