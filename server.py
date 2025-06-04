@@ -100,7 +100,8 @@ def write_agent_keys(keys):
 
 def generate_key(length=6):
     characters = string.ascii_letters + string.digits
-    return 'FBI-'.join(random.choice(characters) for _ in range(length))
+    random_part = ''.join(random.choice(characters) for _ in range(length))
+    return f'FBI-{random_part}'
 
 # Функция для извлечения EXIF-данных
 def get_exif_data(image_file):
@@ -460,22 +461,7 @@ def register():
 
 @app.route('/api/generate-agent-key', methods=['POST'])
 def generate_agent_key():
-    """Генерация нового ключа и сохранение его на сервере."""
-    data = request.get_json()
-    badge_id = data.get('badgeId')
-
-    if not badge_id:
-        return jsonify({'status': 'error', 'message': 'ERROR: Badge ID required'}), 400
-
-    users = read_users()
-    user_exists = False
-    for user in users:
-        if user['badgeId'] == badge_id:
-            user_exists = True
-            break
-    if not user_exists:
-        return jsonify({'status': 'error', 'message': 'ERROR: User not found'}), 404
-
+    """Генерация нового ключа без привязки к Badge ID."""
     # Генерация нового ключа
     new_key = generate_key()  # Используем существующую функцию generate_key
     agent_keys = read_agent_keys()
