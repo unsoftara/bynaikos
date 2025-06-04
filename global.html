@@ -860,7 +860,6 @@
                 console.error('Error fetching user features:', error);
                 showToast('ERROR: Failed to load features', 'error');
                 // Fallback for testing: Show metadata card if API fails
-                // Remove this fallback once the backend API is properly set up
                 console.log('Fallback: Showing metadata card for testing purposes');
                 metadataCard.classList.remove('hidden');
             }
@@ -1122,13 +1121,13 @@
                     return;
                 }
 
-                const currentDate = new Date().toLocaleString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC', hour12: true }) + ' +04, June 04, 2025';
+                const currentDate = new Date('2025-06-04T11:18:00+04:00').toLocaleString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC', hour12: true }) + ' +04, June 04, 2025';
                 const fio = data.fio || 'Not found';
                 const formattedOutput = [
                     'PHONE LOOKUP RESULTS',
                     `├ Date: ${currentDate}`,
                     `├ FIO: ${fio}`,
-                    '┉ Status: SEARCH COMPLETE'
+                    '└ Status: SEARCH COMPLETE'
                 ].join('\n');
 
                 phoneResults.textContent = formattedOutput;
@@ -1196,7 +1195,7 @@
                     return;
                 }
 
-                const currentDate = new Date().toLocaleString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC', hour12: true }) + ' +04, June 04, 2025';
+                const currentDate = new Date('2025-06-04T11:18:00+04:00').toLocaleString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC', hour12: true }) + ' +04, June 04, 2025';
                 const result = data.result || 'No data found';
                 const formattedOutput = [
                     'USERNAME LOOKUP RESULTS',
@@ -1266,7 +1265,7 @@
             ddosResults.innerHTML = 'INITIATING ATTACK..<span class="loading-animation"></span>\n';
 
             try {
-                const currentDate = new Date().toLocaleString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC', hour12: true }) + ' +04, June 04, 2025';
+                const currentDate = new Date('2025-06-04T11:18:00+04:00').toLocaleString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC', hour12: true }) + ' +04, June 04, 2025';
                 const simulatedData = [
                     'DDOS ATTACK SIMULATION',
                     `├ Date: ${currentDate}`,
@@ -1327,22 +1326,35 @@
                 const formData = new FormData();
                 formData.append('image', file);
                 formData.append('badgeId', currentBadgeId);
+                console.log('Sending metadata extraction request with badgeId:', currentBadgeId, 'and file:', file.name);
 
                 const response = await fetch('/api/extract-metadata', {
                     method: 'POST',
                     body: formData
                 });
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
                 const data = await response.json();
+                console.log('Metadata extraction response:', data);
 
                 if (data.status === 'error') {
-                    metadataResults.textContent = `${data.message}\n`;
+                    metadataResults.textContent = `ERROR: ${data.message || 'Metadata feature not unlocked or user not found'}\n`;
                     return;
                 }
 
-                metadataResults.textContent = data.data;
+                const currentDate = new Date('2025-06-04T11:18:00+04:00').toLocaleString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC', hour12: true }) + ' +04, June 04, 2025';
+                const formattedOutput = [
+                    'METADATA EXTRACTION RESULTS',
+                    `├ Date: ${currentDate}`,
+                    `├ File: ${file.name}`,
+                    `├ Metadata: ${data.data || 'No metadata extracted'}`,
+                    '└ Status: EXTRACTION COMPLETE'
+                ].join('\n');
+                metadataResults.textContent = formattedOutput;
             } catch (error) {
-                console.error('Error:', error);
-                metadataResults.textContent = `ERROR: ${error.message}\n`;
+                console.error('Error extracting metadata:', error);
+                metadataResults.textContent = `ERROR: ${error.message || 'Failed to extract metadata'}\n`;
             }
         });
 
