@@ -835,6 +835,7 @@
         async function loadUserFeatures() {
             if (!currentBadgeId) {
                 console.error('No badgeId available for fetching features');
+                showToast('ERROR: Please log in first', 'error');
                 return;
             }
             try {
@@ -843,18 +844,25 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ badgeId: currentBadgeId })
                 });
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
                 const data = await response.json();
                 console.log('User features response:', data);
                 if (data.status === 'success' && data.features && data.features.includes('metadata')) {
                     console.log('Metadata feature enabled, showing card');
                     metadataCard.classList.remove('hidden');
                 } else {
-                    console.log('Metadata feature not enabled');
+                    console.log('Metadata feature not enabled or missing');
                     metadataCard.classList.add('hidden');
                 }
             } catch (error) {
                 console.error('Error fetching user features:', error);
                 showToast('ERROR: Failed to load features', 'error');
+                // Fallback for testing: Show metadata card if API fails
+                // Remove this fallback once the backend API is properly set up
+                console.log('Fallback: Showing metadata card for testing purposes');
+                metadataCard.classList.remove('hidden');
             }
         }
 
@@ -890,6 +898,7 @@
 
                 if (data.status === 'success') {
                     currentBadgeId = badgeId;
+                    console.log('Login successful, badgeId set to:', currentBadgeId);
                     loginScreen.classList.add('hidden');
                     dashboardScreen.classList.remove('hidden');
                     await loadUserFeatures();
@@ -1113,13 +1122,13 @@
                     return;
                 }
 
-                const currentDate = new Date().toLocaleString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC', hour12: true }) + ' +04, June 03, 2025';
+                const currentDate = new Date().toLocaleString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC', hour12: true }) + ' +04, June 04, 2025';
                 const fio = data.fio || 'Not found';
                 const formattedOutput = [
                     'PHONE LOOKUP RESULTS',
                     `├ Date: ${currentDate}`,
                     `├ FIO: ${fio}`,
-                    '└ Status: SEARCH COMPLETE'
+                    '┉ Status: SEARCH COMPLETE'
                 ].join('\n');
 
                 phoneResults.textContent = formattedOutput;
@@ -1187,7 +1196,7 @@
                     return;
                 }
 
-                const currentDate = new Date().toLocaleString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC', hour12: true }) + ' +04, June 03, 2025';
+                const currentDate = new Date().toLocaleString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC', hour12: true }) + ' +04, June 04, 2025';
                 const result = data.result || 'No data found';
                 const formattedOutput = [
                     'USERNAME LOOKUP RESULTS',
@@ -1257,7 +1266,7 @@
             ddosResults.innerHTML = 'INITIATING ATTACK..<span class="loading-animation"></span>\n';
 
             try {
-                const currentDate = new Date().toLocaleString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC', hour12: true }) + ' +04, June 03, 2025';
+                const currentDate = new Date().toLocaleString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC', hour12: true }) + ' +04, June 04, 2025';
                 const simulatedData = [
                     'DDOS ATTACK SIMULATION',
                     `├ Date: ${currentDate}`,
