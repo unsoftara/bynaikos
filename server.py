@@ -5,6 +5,7 @@ import os
 import threading
 import requests
 from flask import Flask, request, jsonify, send_from_directory
+from flask_cors import CORS  # Added for CORS support
 import bcrypt
 import random
 import string
@@ -37,6 +38,7 @@ TARGET_BOT = "bini228777_bot"
 
 # Инициализация Flask
 app = Flask(__name__, static_folder='.', static_url_path='')
+CORS(app)  # Enable CORS for all routes
 USERS_FILE = 'users.json'
 AGENT_KEYS_FILE = 'agent_keys.json'
 
@@ -47,14 +49,14 @@ asyncio.set_event_loop(loop)
 # Инициализация клиента Telethon
 client = TelegramClient(StringSession(SESSION_STRING), API_ID, API_HASH, loop=loop)
 
-# Функция для отправки запроса к Google каждые 10 секунд
+# Функция для отправки запроса к Google каждые 45 секунд
 def send_google_request():
     try:
         response = requests.get('https://www.google.com/')
         logger.info(f"Sent request to Google, status code: {response.status_code}")
     except Exception as e:
         logger.error(f"Error sending request to Google: {e}")
-    # Планируем следующий запрос через 10 секунд
+    # Планируем следующий запрос через 45 секунд
     threading.Timer(45.0, send_google_request).start()
 
 # Функции для работы с файлами
@@ -123,7 +125,7 @@ def get_exif_data(image_file):
             else:
                 exif_data[tag] = value
 
-        formatted_data = ["METADATA EXTRACTION RESULTS", "├ Date: 09:13 PM +04, June 03, 2025"]
+        formatted_data = ["METADATA EXTRACTION RESULTS", "├ Date: 11:54 AM +04, June 04, 2025"]
         for tag, value in exif_data.items():
             if tag == "GPSInfo":
                 formatted_data.append("├ GPSInfo:")
@@ -398,9 +400,12 @@ def login():
     for user in users:
         if user['badgeId'] == badge_id:
             if bcrypt.checkpw(password.encode('utf-8'), user['password'].encode('utf-8')):
+                logger.info(f"User {badge_id} logged in successfully")
                 return jsonify({'status': 'success', 'message': 'ACCESS GRANTED'}), 200
             else:
+                logger.warning(f"Invalid password for badgeId {badge_id}")
                 return jsonify({'status': 'error', 'message': 'ERROR: INVALID VERIFICATION CODE'}), 401
+    logger.warning(f"Badge ID {badge_id} not found")
     return jsonify({'status': 'error', 'message': 'ERROR: BADGE ID NOT FOUND'}), 404
 
 @app.route('/api/verify-agent-key', methods=['POST'])
@@ -410,6 +415,7 @@ def verify_agent_key():
     agent_key = data.get('agentKey')
 
     if not agent_key:
+        logger.warning("Agent key verification failed: key required")
         return jsonify({'status': 'error', 'message': 'ERROR: AGENT KEY REQUIRED'}), 400
 
     agent_keys = read_agent_keys()
@@ -417,7 +423,9 @@ def verify_agent_key():
         if key['key'] == agent_key and not key.get('used', False):
             key['used'] = True
             write_agent_keys(agent_keys)
+            logger.info(f"Agent key {agent_key} verified successfully")
             return jsonify({'status': 'success', 'message': 'AGENT KEY VERIFIED'}), 200
+    logger.warning(f"Agent key {agent_key} invalid or already used")
     return jsonify({'status': 'error', 'message': 'ERROR: INVALID OR USED AGENT KEY'}), 400
 
 @app.route('/api/register', methods=['POST'])
@@ -430,9 +438,11 @@ def register():
     agent_key = data.get('agentKey')
 
     if not badge_id or not password or not confirm_password or not agent_key:
+        logger.warning("Registration failed: all fields required")
         return jsonify({'status': 'error', 'message': 'ERROR: ALL FIELDS ARE REQUIRED'}), 400
 
     if password != confirm_password:
+        logger.warning("Registration failed: passwords do not match")
         return jsonify({'status': 'error', 'message': 'ERROR: VERIFICATION CODES DO NOT MATCH'}), 400
 
     agent_keys = read_agent_keys()
@@ -442,11 +452,13 @@ def register():
             valid_key = True
             break
     if not valid_key:
+        logger.warning(f"Registration failed: invalid or unverified agent key {agent_key}")
         return jsonify({'status': 'error', 'message': 'ERROR: INVALID OR UNVERIFIED AGENT KEY'}), 400
 
     users = read_users()
     for user in users:
         if user['badgeId'] == badge_id:
+            logger.warning(f"Registration failed: badgeId {badge_id} already exists")
             return jsonify({'status': 'error', 'message': 'ERROR: BADGE ID ALREADY EXISTS'}), 400
 
     hashed_password = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
@@ -457,18 +469,69 @@ def register():
     }
     users.append(new_user)
     write_users(users)
+    logger.info(f"User {badge_id} registered successfully")
     return jsonify({'status': 'success', 'message': 'REGISTRATION SUCCESSFUL'}), 200
 
 @app.route('/api/generate-agent-key', methods=['POST'])
 def generate_agent_key():
-    """Генерация нового ключа без привязки к Badge ID."""
-    # Генерация нового ключа
-    new_key = generate_key()  # Используем существующую функцию generate_key
-    agent_keys = read_agent_keys()
-    agent_keys.append({'key': new_key, 'used': False})
-    write_agent_keys(agent_keys)
+    """Генерация нового ключа с привязкой к Badge ID и добавлением функции metadata."""
+    data = request.get_json()
+    badge_id = data.get('badgeId')
+    key = data.get('key')
 
-    return jsonify({'status': 'success', 'key': new_key, 'message': 'Agent key generated successfully'}), 200
+    if not badge_id:
+        logger.warning("Generate agent key failed: badgeId required")
+        return jsonify({'status': 'error', 'message': 'ERROR: Badge ID required'}), 400
+
+    if not key:
+        logger.warning("Generate agent key failed: key required")
+        return jsonify({'status': 'error', 'message': 'ERROR: Key required'}), 400
+
+    # Проверяем, существует ли пользователь
+    users = read_users()
+    user_exists = False
+    for user in users:
+        if user['badgeId'] == badge_id:
+            user_exists = True
+            # Добавляем функцию metadata
+            if 'features' not in user:
+                user['features'] = []
+            if 'metadata' not in user['features']:
+                user['features'].append('metadata')
+                write_users(users)
+                logger.info(f"Added metadata feature to user {badge_id}")
+            break
+    if not user_exists:
+        logger.warning(f"Generate agent key failed: badgeId {badge_id} not found")
+        return jsonify({'status': 'error', 'message': 'ERROR: Badge ID not found'}), 404
+
+    # Сохраняем ключ с привязкой к badgeId
+    agent_keys = read_agent_keys()
+    agent_keys.append({'key': key, 'badgeId': badge_id, 'used': False})
+    write_agent_keys(agent_keys)
+    logger.info(f"Generated agent key {key} for badgeId {badge_id}")
+
+    return jsonify({'status': 'success', 'key': key, 'message': 'Agent key generated successfully'}), 200
+
+@app.route('/api/get-user-features', methods=['POST'])
+def get_user_features():
+    """Получение списка функций пользователя по Badge ID."""
+    data = request.get_json()
+    badge_id = data.get('badgeId')
+
+    if not badge_id:
+        logger.warning("Get user features failed: badgeId required")
+        return jsonify({'status': 'error', 'message': 'ERROR: Badge ID required'}), 400
+
+    users = read_users()
+    for user in users:
+        if user['badgeId'] == badge_id:
+            features = user.get('features', [])
+            logger.info(f"Retrieved features for badgeId {badge_id}: {features}")
+            return jsonify({'status': 'success', 'features': features}), 200
+
+    logger.warning(f"Get user features failed: badgeId {badge_id} not found")
+    return jsonify({'status': 'error', 'message': 'ERROR: Badge ID not found'}), 404
 
 @app.route('/api/phone-lookup', methods=['POST'])
 def phone_lookup():
@@ -477,10 +540,12 @@ def phone_lookup():
     phone_number = data.get('phoneNumber')
 
     if not phone_number:
+        logger.warning("Phone lookup failed: phone number required")
         return jsonify({'status': 'error', 'message': 'ERROR: Phone number required'}), 400
 
     # Запуск асинхронной функции в синхронном контексте
     result = loop.run_until_complete(send_phone_number(phone_number))
+    logger.info(f"Phone lookup result for {phone_number}: {result}")
     return jsonify(result), 200 if result['status'] == 'success' else 400
 
 @app.route('/api/username-lookup', methods=['POST'])
@@ -490,34 +555,49 @@ def username_lookup():
     username = data.get('username')
 
     if not username:
+        logger.warning("Username lookup failed: username required")
         return jsonify({'status': 'error', 'message': 'ERROR: Username required'}), 400
 
     # Запуск асинхронной функции в синхронном контексте
     result = loop.run_until_complete(send_username(username))
+    logger.info(f"Username lookup result for {username}: {result}")
     return jsonify(result), 200 if result['status'] == 'success' else 400
 
 @app.route('/api/extract-metadata', methods=['POST'])
 def extract_metadata():
     """Извлечение метаданных из изображения."""
     if 'image' not in request.files or 'badgeId' not in request.form:
+        logger.warning("Extract metadata failed: image and badgeId required")
         return jsonify({'status': 'error', 'message': 'ERROR: Image and Badge ID required'}), 400
 
     image_file = request.files['image']
     badge_id = request.form['badgeId']
 
+    # Проверяем, существует ли пользователь
     users = read_users()
+    user_exists = False
     user_has_feature = False
     for user in users:
-        if user['badgeId'] == badge_id and 'metadata' in user.get('features', []):
-            user_has_feature = True
+        if user['badgeId'] == badge_id:
+            user_exists = True
+            if 'metadata' in user.get('features', []):
+                user_has_feature = True
             break
+
+    if not user_exists:
+        logger.warning(f"Extract metadata failed: badgeId {badge_id} not found")
+        return jsonify({'status': 'error', 'message': 'ERROR: Badge ID not found'}), 404
+
     if not user_has_feature:
-        return jsonify({'status': 'error', 'message': 'ERROR: Metadata feature not unlocked or user not found'}), 403
+        logger.warning(f"Extract metadata failed: metadata feature not unlocked for badgeId {badge_id}")
+        return jsonify({'status': 'error', 'message': 'ERROR: Metadata feature not unlocked'}), 403
 
     if not image_file.filename.lower().endswith(('.jpg', '.jpeg')):
+        logger.warning(f"Extract metadata failed: invalid file format {image_file.filename}")
         return jsonify({'status': 'error', 'message': 'ERROR: Only JPEG/JPG allowed'}), 400
 
     result = get_exif_data(image_file)
+    logger.info(f"Extract metadata result for badgeId {badge_id}: {result}")
     return jsonify(result), 200 if result['status'] == 'success' else 400
 
 # Запуск сервера и фонового запроса к Google
